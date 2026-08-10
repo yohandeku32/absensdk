@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AnimatePresence } from 'motion/react';
 import { User, AttendanceRecord, AbsenMode } from './types';
-import { GOOGLE_SCRIPT_URL } from './constants';
 
 import LoginView from './components/LoginView';
 import GuruDashboard from './components/GuruDashboard';
@@ -10,12 +9,15 @@ import CameraCapture from './components/CameraCapture';
 import Loader from './components/Loader';
 import SuccessModal from './components/SuccessModal';
 
+// API Vercel -> TiDB
+const ABSENSI_API_URL = '/api/absensi';
+
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [globalDatabase, setGlobalDatabase] = useState<AttendanceRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loaderText, setLoaderText] = useState('Menyiapkan Data...');
-  
+
   // Camera capture modal state
   const [currentMode, setCurrentMode] = useState<AbsenMode | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,12 +30,14 @@ export default function App() {
   // Read session on mount
   useEffect(() => {
     const savedUser = localStorage.getItem('absen_user_session');
+
     if (savedUser) {
       try {
         const parsed = JSON.parse(savedUser) as User;
         setCurrentUser(parsed);
       } catch (e) {
         console.error('Failed to parse saved user session:', e);
+        localStorage.removeItem('absen_user_session');
       }
     }
   }, []);
@@ -45,16 +49,32 @@ export default function App() {
     }
   }, [currentUser]);
 
+  // =====================================================
+  // AMBIL DATA ABSENSI DARI TIDB
+  // =====================================================
   const fetchDatabase = async () => {
     setIsLoading(true);
-    setLoaderText('Sinkronisasi Database...');
+    setLoaderText('Sinkronisasi Database TiDB...');
+
     try {
-      const res = await fetch(`${GOOGLE_SCRIPT_URL}?t=${Date.now()}`);
+      const res = await fetch(`${ABSENSI_API_URL}?t=${Date.now()}`, {
+        method: 'GET',
+        cache: 'no-store'
+      });
+
       const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data?.message || `Gagal membaca database (${res.status})`
+        );
+      }
+
       if (Array.isArray(data)) {
         setGlobalDatabase(data);
       } else {
-        console.warn('Fetched data is not an array:', data);
+        console.warn('Data absensi bukan array:', data);
+        setGlobalDatabase([]);
       }
     } catch (e) {
       console.error('Fetch database error:', e);
@@ -74,62 +94,86 @@ export default function App() {
     setGlobalDatabase([]);
   };
 
+  // =====================================================
+  // KIRIM ABSENSI KE VERCEL -> TIDB
+  // FOTO AKAN DITERUSKAN API KE APPS SCRIPT -> GOOGLE DRIVE
+  // =====================================================
   const handleCapture = async (photoBase64: string) => {
     if (!currentUser || !currentMode) return;
+
+    const modeYangDikirim = currentMode;
 
     setIsSubmitting(true);
     setUploadProgress(15);
 
     const now = new Date();
+
     const yyyy = now.getFullYear();
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const dd = String(now.getDate()).padStart(2, '0');
     const localDate = `${yyyy}-${mm}-${dd}`;
 
-    const localTime = now.toLocaleTimeString('id-ID', {
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    // Dibuat manual agar selalu HH:MM dan tidak berubah menjadi 24:xx
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    const localTime = `${hh}:${min}`;
 
-    setUploadProgress(45);
+    setUploadProgress(35);
 
     const payload = {
       id_user: String(currentUser.id),
-      name: currentUser.name,
       date: localDate,
       time: localTime,
-      status: currentMode,
-      photo: photoBase64
+      status: modeYangDikirim,
+      photo: photoBase64,
+      note: '-'
     };
 
-    setUploadProgress(75);
-
     try {
-      const response = await fetch(GOOGLE_SCRIPT_URL, {
+      setUploadProgress(55);
+
+      const response = await fetch(ABSENSI_API_URL, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(payload)
       });
+
+      setUploadProgress(85);
+
       const result = await response.json();
 
-      if (result.status === 'error') {
-        alert("GAGAL MENGIRIM ABSEN: " + result.message);
+      if (!response.ok || result.status === 'error') {
+        alert(
+          'GAGAL MENGIRIM ABSEN: ' +
+            (result.message || `HTTP ${response.status}`)
+        );
+
         setIsSubmitting(false);
         setUploadProgress(0);
         return;
       }
 
       setUploadProgress(100);
+
+      // Sinkronkan data TiDB setelah berhasil
+      await fetchDatabase();
+
       setTimeout(() => {
         setIsSubmitting(false);
+        setUploadProgress(0);
         setCurrentMode(null);
-        setSuccessMessage(`Absensi ${currentMode} Anda sukses direkam.`);
+        setSuccessMessage(`Absensi ${modeYangDikirim} Anda sukses direkam.`);
         setShowSuccessModal(true);
-      }, 500);
-
+      }, 350);
     } catch (err) {
       console.error(err);
-      alert("Gagal mengirim data absensi. Pastikan internet stabil dan coba lagi.");
+
+      alert(
+        'Gagal mengirim data absensi. Pastikan internet stabil dan coba lagi.'
+      );
+
       setIsSubmitting(false);
       setUploadProgress(0);
     }
@@ -138,13 +182,13 @@ export default function App() {
   const handleCloseSuccessModal = async () => {
     setShowSuccessModal(false);
     setSuccessMessage('');
-    // Refresh database for instant UI synchronization
+
+    // Refresh sekali lagi untuk memastikan UI sinkron
     await fetchDatabase();
   };
 
   return (
     <div className="min-h-screen text-slate-800 bg-slate-50 relative antialiased select-none">
-      
       {/* GLOBAL LOADER */}
       <AnimatePresence>
         {isLoading && <Loader text={loaderText} />}
@@ -200,7 +244,6 @@ export default function App() {
           />
         )}
       </AnimatePresence>
-
     </div>
   );
 }
