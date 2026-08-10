@@ -378,13 +378,11 @@ export default {
           ).trim();
 
 
-        const status =
-          String(
-            body.status || ''
-          )
-            .trim()
-            .toUpperCase()
-            as AbsenStatus;
+        const status = String(
+          body.status || ''
+        )
+          .trim()
+          .toUpperCase() as AbsenStatus;
 
 
         const photo =
