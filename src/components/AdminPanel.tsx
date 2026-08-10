@@ -9,7 +9,8 @@ import {
   LogOut,
   Printer,
   RefreshCw,
-  Search
+  Search,
+  Trash2
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -272,6 +273,7 @@ export default function AdminPanel({
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [selectedYear, setSelectedYear] = useState(String(currentYear));
   const [searchQuery, setSearchQuery] = useState('');
+  const [deletingKey, setDeletingKey] = useState('');
 
   const staffList = useMemo(
     () => MASTER_USERS.filter((u) => u.role !== 'admin'),
@@ -501,6 +503,9 @@ export default function AdminPanel({
   const selectedMonthLabel =
     MONTHS.find((month) => month.value === selectedMonth)?.label || '';
 
+  const ABSENSI_API_URL =
+    'https://absensdk.vercel.app/api/absensi';
+
   const EXPORT_EXCEL_URL =
     'https://absensdk.vercel.app/api/export-excel';
 
@@ -512,6 +517,71 @@ export default function AdminPanel({
     try {
       await onRefresh();
     } finally {
+      hideLoader();
+    }
+  };
+
+
+  const handleDeleteAttendance = async (
+    record: AttendanceRecord
+  ) => {
+    const key = `${record.id_user}-${record.date}`;
+
+    if (deletingKey) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Hapus data absensi?\n\n` +
+      `Nama: ${record.name}\n` +
+      `Tanggal: ${formatDateIndonesia(record.date)}\n\n` +
+      `Data absensi akan dihapus dari TiDB dan foto Masuk/Pulang dipindahkan ke Sampah Google Drive.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingKey(key);
+    showLoader('Menghapus data absensi...');
+
+    try {
+      const params = new URLSearchParams({
+        id_user: String(record.id_user),
+        tanggal: String(record.date)
+      });
+
+      const response = await fetch(
+        `${ABSENSI_API_URL}?${params.toString()}`,
+        {
+          method: 'DELETE'
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || result.status !== 'success') {
+        throw new Error(
+          result.message ||
+          'Data absensi gagal dihapus.'
+        );
+      }
+
+      await onRefresh();
+
+      if (result.warning) {
+        alert(
+          `Data absensi berhasil dihapus.\n\nCatatan: ${result.warning}`
+        );
+      }
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : 'Data absensi gagal dihapus.'
+      );
+    } finally {
+      setDeletingKey('');
       hideLoader();
     }
   };
@@ -1207,6 +1277,7 @@ export default function AdminPanel({
                   <th className="report-note-col border border-slate-300 p-3 text-center">Keterangan</th>
                   <th className="report-photo-col border border-slate-300 p-3 text-center">Foto Masuk</th>
                   <th className="report-photo-col border border-slate-300 p-3 text-center">Foto Pulang</th>
+                  <th className="screen-only border border-slate-300 p-3 text-center">Aksi</th>
                 </tr>
               </thead>
 
@@ -1297,13 +1368,29 @@ export default function AdminPanel({
                               alt={`Foto pulang ${record.name} ${record.date}`}
                             />
                           </td>
+
+                          <td className="screen-only border border-slate-300 p-2 text-center align-middle">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAttendance(record)}
+                              disabled={
+                                deletingKey === `${record.id_user}-${record.date}` ||
+                                Boolean(deletingKey)
+                              }
+                              className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-[11px] font-black text-red-600 transition-colors hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                              title="Hapus data absensi"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Hapus
+                            </button>
+                          </td>
                         </tr>
                       );
                     })
                   )
                 ) : (
                   <tr>
-                    <td colSpan={8} className="p-14 text-center text-slate-400">
+                    <td colSpan={9} className="p-14 text-center text-slate-400">
                       <div className="flex flex-col items-center justify-center gap-3">
                         <FileText className="h-10 w-10 text-slate-300" />
                         <span className="font-medium italic">
