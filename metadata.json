@@ -1,0 +1,8 @@
+{
+  "name": "E-Absensi SDK St. Yoseph Kuaputu",
+  "description": "Sistem aplikasi web absensi foto online untuk Guru dan Pegawai SDK St. Yoseph Kuaputu terintegrasi langsung dengan spreadsheet.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

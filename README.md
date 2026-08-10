@@ -1,2 +1,1 @@
-# absensdk
-versi baru
+ABSEN KUAPUTU
