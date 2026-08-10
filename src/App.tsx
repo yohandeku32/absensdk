@@ -10,7 +10,7 @@ import Loader from './components/Loader';
 import SuccessModal from './components/SuccessModal';
 
 // API Vercel -> TiDB
-const ABSENSI_API_URL = '/api/absensi';
+const ABSENSI_API_URL = 'https://absensdk.vercel.app/api/absensi';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
