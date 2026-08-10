@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import * as XLSX from 'xlsx';
 import { User, AttendanceRecord } from '../types';
 import { MASTER_USERS } from '../constants';
 import {
@@ -233,6 +232,9 @@ export default function AdminPanel({
   const selectedMonthLabel =
     MONTHS.find((month) => month.value === selectedMonth)?.label || '';
 
+  const EXPORT_EXCEL_URL =
+    'https://absensdk.vercel.app/api/export-excel';
+
   const handleRefresh = async () => {
     showLoader('Memperbarui Data TiDB...');
     try {
@@ -242,239 +244,24 @@ export default function AdminPanel({
     }
   };
 
+
   const handleDownloadExcel = () => {
     if (filteredRecords.length === 0) {
       return;
     }
 
-    showLoader('Membuat file Excel...');
+    const params = new URLSearchParams({
+      bulan: selectedMonth,
+      tahun: selectedYear
+    });
 
-    try {
-      const reportRows: (string | number | null)[][] = [
-        ['LAPORAN ABSENSI GURU DAN PEGAWAI'],
-        ['SDK ST. YOSEPH KUAPUTU'],
-        [`BULAN ${selectedMonthLabel.toUpperCase()} ${selectedYear}`],
-        [],
-        [
-          'NO',
-          'NAMA',
-          'JENIS IDENTITAS',
-          'NIP / NIK',
-          'STATUS KEPEGAWAIAN',
-          'GOL.RUANG',
-          'JABATAN',
-          'TANGGAL',
-          'JAM MASUK',
-          'JAM PULANG',
-          'STATUS ABSENSI',
-          'KETERANGAN',
-          'FOTO MASUK',
-          'FOTO PULANG'
-        ]
-      ];
-
-      const reportMerges: XLSX.Range[] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 13 } },
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 13 } },
-        { s: { r: 2, c: 0 }, e: { r: 2, c: 13 } }
-      ];
-
-      const photoLinks: Array<{
-        rowIndex: number;
-        masuk?: string;
-        pulang?: string;
-      }> = [];
-
-      groupedRecords.forEach((group, groupIndex) => {
-        const identityNumber = group.nip || group.nik || group.id_user || '-';
-        const identityLabel = group.nip ? 'NIP' : group.nik ? 'NIK' : 'ID';
-
-        const firstExcelRowIndex = reportRows.length;
-
-        group.records.forEach((record, recordIndex) => {
-          const jam = getJam(record);
-
-          reportRows.push([
-            recordIndex === 0 ? groupIndex + 1 : '',
-            recordIndex === 0 ? group.name || '-' : '',
-            recordIndex === 0 ? identityLabel : '',
-            recordIndex === 0 ? identityNumber : '',
-            recordIndex === 0 ? group.status_kepegawaian || '-' : '',
-            recordIndex === 0 ? group.golongan_ruang || '-' : '',
-            recordIndex === 0 ? group.jabatan || '-' : '',
-            formatDateIndonesia(record.date),
-            jam.masuk,
-            jam.pulang,
-            record.status || '-',
-            record.keterangan || '-',
-            record.foto_masuk_file_id ? 'Buka Foto Masuk' : '-',
-            record.foto_pulang_file_id ? 'Buka Foto Pulang' : '-'
-          ]);
-
-          photoLinks.push({
-            rowIndex: reportRows.length - 1,
-            masuk: record.foto_masuk_file_id
-              ? driveViewUrl(record.foto_masuk_file_id)
-              : undefined,
-            pulang: record.foto_pulang_file_id
-              ? driveViewUrl(record.foto_pulang_file_id)
-              : undefined
-          });
-        });
-
-        const lastExcelRowIndex = reportRows.length - 1;
-
-        if (lastExcelRowIndex > firstExcelRowIndex) {
-          for (let col = 0; col <= 6; col++) {
-            reportMerges.push({
-              s: { r: firstExcelRowIndex, c: col },
-              e: { r: lastExcelRowIndex, c: col }
-            });
-          }
-        }
-      });
-
-      const reportSheet = XLSX.utils.aoa_to_sheet(reportRows);
-
-      reportSheet['!merges'] = reportMerges;
-      reportSheet['!cols'] = [
-        { wch: 6 },
-        { wch: 32 },
-        { wch: 16 },
-        { wch: 24 },
-        { wch: 20 },
-        { wch: 14 },
-        { wch: 24 },
-        { wch: 14 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 20 },
-        { wch: 24 },
-        { wch: 18 },
-        { wch: 18 }
-      ];
-
-      reportSheet['!autofilter'] = {
-        ref: `A5:N${reportRows.length}`
-      };
-
-      photoLinks.forEach(({ rowIndex, masuk, pulang }) => {
-        if (masuk) {
-          const cellAddress = XLSX.utils.encode_cell({
-            r: rowIndex,
-            c: 12
-          });
-
-          if (reportSheet[cellAddress]) {
-            reportSheet[cellAddress].l = {
-              Target: masuk,
-              Tooltip: 'Buka foto masuk di Google Drive'
-            };
-          }
-        }
-
-        if (pulang) {
-          const cellAddress = XLSX.utils.encode_cell({
-            r: rowIndex,
-            c: 13
-          });
-
-          if (reportSheet[cellAddress]) {
-            reportSheet[cellAddress].l = {
-              Target: pulang,
-              Tooltip: 'Buka foto pulang di Google Drive'
-            };
-          }
-        }
-      });
-
-      const flatRows = filteredRecords.map((record, index) => {
-        const jam = getJam(record);
-        const identityLabel = record.nip ? 'NIP' : record.nik ? 'NIK' : 'ID';
-        const identityNumber = record.nip || record.nik || record.id_user || '-';
-
-        return {
-          No: index + 1,
-          Nama: record.name || '-',
-          'Jenis Identitas': identityLabel,
-          'NIP / NIK': identityNumber,
-          'Status Kepegawaian': record.status_kepegawaian || '-',
-          'Gol.Ruang': record.golongan_ruang || '-',
-          Jabatan: record.jabatan || '-',
-          Tanggal: formatDateIndonesia(record.date),
-          'Jam Masuk': jam.masuk,
-          'Jam Pulang': jam.pulang,
-          'Status Absensi': record.status || '-',
-          Keterangan: record.keterangan || '-',
-          'Foto Masuk': record.foto_masuk_file_id
-            ? driveViewUrl(record.foto_masuk_file_id)
-            : '-',
-          'Foto Pulang': record.foto_pulang_file_id
-            ? driveViewUrl(record.foto_pulang_file_id)
-            : '-'
-        };
-      });
-
-      const dataSheet = XLSX.utils.json_to_sheet(flatRows);
-
-      dataSheet['!cols'] = [
-        { wch: 6 },
-        { wch: 32 },
-        { wch: 16 },
-        { wch: 24 },
-        { wch: 20 },
-        { wch: 14 },
-        { wch: 24 },
-        { wch: 14 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 20 },
-        { wch: 24 },
-        { wch: 48 },
-        { wch: 48 }
-      ];
-
-      if (flatRows.length > 0) {
-        dataSheet['!autofilter'] = {
-          ref: `A1:N${flatRows.length + 1}`
-        };
-      }
-
-      const workbook = XLSX.utils.book_new();
-
-      XLSX.utils.book_append_sheet(
-        workbook,
-        reportSheet,
-        'Laporan'
-      );
-
-      XLSX.utils.book_append_sheet(
-        workbook,
-        dataSheet,
-        'Data'
-      );
-
-      const guruName = selectedGuru
-        ? staffList.find((staff) => staff.id === selectedGuru)?.name || 'Guru'
-        : 'Semua_Guru';
-
-      const safeGuruName = guruName
-        .replace(/[\\/:*?"<>|]/g, '-')
-        .replace(/\s+/g, '_');
-
-      const fileName =
-        `Absensi_${selectedMonthLabel}_${selectedYear}_${safeGuruName}.xlsx`;
-
-      XLSX.writeFile(
-        workbook,
-        fileName,
-        {
-          compression: true
-        }
-      );
-    } finally {
-      hideLoader();
+    if (selectedGuru) {
+      params.set('id_user', selectedGuru);
     }
+
+    const url = `${EXPORT_EXCEL_URL}?${params.toString()}`;
+
+    window.open(url, '_blank');
   };
 
   const handlePrint = async () => {
