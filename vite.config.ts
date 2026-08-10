@@ -7,7 +7,7 @@ export default defineConfig(() => {
   return {
     // Gunakan "/" karena website memakai domain sendiri:
     // absenkuaputu.my.id
-    base: '/',
+    base: '/absensdk/',
 
     plugins: [
       react(),
