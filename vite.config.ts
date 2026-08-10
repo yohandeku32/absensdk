@@ -5,9 +5,14 @@ import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
   return {
-    // Gunakan "/" karena website memakai domain sendiri:
-    // absenkuaputu.my.id
-    base: '/absensdk/',
+    /*
+     * Gunakan path relatif agar build tetap aman saat transisi:
+     * - https://yohandeku32.github.io/absensdk/
+     * - https://absenkuaputu.my.id/
+     *
+     * Setelah custom domain aktif, asset tetap dimuat dengan benar.
+     */
+    base: './',
 
     plugins: [
       react(),
@@ -21,10 +26,7 @@ export default defineConfig(() => {
     },
 
     server: {
-      // HMR dinonaktifkan di AI Studio melalui DISABLE_HMR.
       hmr: process.env.DISABLE_HMR !== 'true',
-
-      // Nonaktifkan file watching ketika DISABLE_HMR aktif.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
   };
