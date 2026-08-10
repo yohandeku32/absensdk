@@ -2,25 +2,46 @@ import { connect } from '@tidbcloud/serverless';
 
 type AbsenStatus = 'MASUK' | 'PULANG';
 
-const ALLOWED_ORIGIN =
-  'https://yohandeku32.github.io';
+const ALLOWED_ORIGINS = new Set([
+  'https://absenkuaputu.my.id',
+  'https://yohandeku32.github.io',
+]);
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin':
-    ALLOWED_ORIGIN,
 
-  'Access-Control-Allow-Methods':
-    'GET, POST, DELETE, OPTIONS',
+// ======================================================
+// CORS
+// - Custom domain baru
+// - GitHub Pages lama tetap diizinkan selama masa transisi
+// ======================================================
 
-  'Access-Control-Allow-Headers':
-    'Content-Type',
+function getCorsHeaders(
+  request: Request
+) {
+  const origin =
+    request.headers.get('Origin') || '';
 
-  'Access-Control-Max-Age':
-    '86400',
+  const allowedOrigin =
+    ALLOWED_ORIGINS.has(origin)
+      ? origin
+      : 'https://absenkuaputu.my.id';
 
-  'Vary':
-    'Origin',
-};
+  return {
+    'Access-Control-Allow-Origin':
+      allowedOrigin,
+
+    'Access-Control-Allow-Methods':
+      'GET, POST, DELETE, OPTIONS',
+
+    'Access-Control-Allow-Headers':
+      'Content-Type',
+
+    'Access-Control-Max-Age':
+      '86400',
+
+    'Vary':
+      'Origin',
+  };
+}
 
 
 // ======================================================
@@ -28,6 +49,7 @@ const corsHeaders = {
 // ======================================================
 
 function json(
+  request: Request,
   data: unknown,
   status = 200
 ) {
@@ -35,7 +57,8 @@ function json(
     data,
     {
       status,
-      headers: corsHeaders,
+      headers:
+        getCorsHeaders(request),
     }
   );
 }
@@ -57,7 +80,7 @@ export default {
         null,
         {
           status: 204,
-          headers: corsHeaders,
+          headers: getCorsHeaders(request),
         }
       );
     }
@@ -73,7 +96,7 @@ export default {
 
 
       if (!databaseUrl) {
-        return json(
+        return json(request, 
           {
             status: 'error',
             message:
@@ -244,7 +267,7 @@ export default {
             nomorBulan < 1 ||
             nomorBulan > 12
           ) {
-            return json(
+            return json(request, 
               {
                 status: 'error',
                 message:
@@ -276,7 +299,7 @@ export default {
             nomorTahun < 2000 ||
             nomorTahun > 2100
           ) {
-            return json(
+            return json(request, 
               {
                 status: 'error',
                 message:
@@ -310,7 +333,7 @@ export default {
 
         // Tetap ARRAY agar cocok
         // dengan App.tsx lama
-        return json(data);
+        return json(request, data);
       }
 
 
@@ -337,7 +360,7 @@ export default {
 
 
         if (!idUser || !tanggal) {
-          return json(
+          return json(request, 
             {
               status: 'error',
               message:
@@ -349,7 +372,7 @@ export default {
 
 
         if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) {
-          return json(
+          return json(request, 
             {
               status: 'error',
               message:
@@ -384,7 +407,7 @@ export default {
           !Array.isArray(existing) ||
           existing.length === 0
         ) {
-          return json(
+          return json(request, 
             {
               status: 'error',
               message:
@@ -452,7 +475,7 @@ export default {
         }
 
 
-        return json({
+        return json(request, {
           status:
             'success',
 
@@ -479,7 +502,7 @@ export default {
 
         if (!appsScriptUrl) {
 
-          return json(
+          return json(request, 
             {
               status: 'error',
               message:
@@ -503,7 +526,7 @@ export default {
 
         } catch {
 
-          return json(
+          return json(request, 
             {
               status: 'error',
               message:
@@ -578,7 +601,7 @@ export default {
           !photo
         ) {
 
-          return json(
+          return json(request, 
             {
               status: 'error',
               message:
@@ -599,7 +622,7 @@ export default {
           status !== 'PULANG'
         ) {
 
-          return json(
+          return json(request, 
             {
               status: 'error',
               message:
@@ -621,7 +644,7 @@ export default {
           )
         ) {
 
-          return json(
+          return json(request, 
             {
               status: 'error',
               message:
@@ -643,7 +666,7 @@ export default {
           )
         ) {
 
-          return json(
+          return json(request, 
             {
               status: 'error',
               message:
@@ -665,7 +688,7 @@ export default {
           )
         ) {
 
-          return json(
+          return json(request, 
             {
               status: 'error',
               message:
@@ -708,7 +731,7 @@ export default {
           guruRows.length === 0
         ) {
 
-          return json(
+          return json(request, 
             {
               status: 'error',
               message:
@@ -797,7 +820,7 @@ export default {
             absenHariIni.jam_masuk
           ) {
 
-            return json(
+            return json(request, 
               {
                 status: 'error',
                 message:
@@ -842,7 +865,7 @@ export default {
             !hasilFoto.file_id
           ) {
 
-            return json(
+            return json(request, 
               {
                 status: 'error',
 
@@ -900,7 +923,7 @@ export default {
               error
             );
 
-            return json(
+            return json(request, 
               {
                 status: 'error',
                 message:
@@ -912,7 +935,7 @@ export default {
 
 
 
-          return json({
+          return json(request, {
             status:
               'success',
 
@@ -974,7 +997,7 @@ export default {
             !absenHariIni.jam_masuk
           ) {
 
-            return json(
+            return json(request, 
               {
                 status: 'error',
                 message:
@@ -994,7 +1017,7 @@ export default {
             absenHariIni.jam_pulang
           ) {
 
-            return json(
+            return json(request, 
               {
                 status: 'error',
                 message:
@@ -1038,7 +1061,7 @@ export default {
             !hasilFoto.file_id
           ) {
 
-            return json(
+            return json(request, 
               {
                 status: 'error',
 
@@ -1096,7 +1119,7 @@ export default {
 
 
 
-          return json({
+          return json(request, {
             status:
               'success',
 
@@ -1148,7 +1171,7 @@ export default {
       // METHOD TIDAK DIDUKUNG
       // ==================================================
 
-      return json(
+      return json(request, 
         {
           status:
             'error',
@@ -1168,7 +1191,7 @@ export default {
       );
 
 
-      return json(
+      return json(request, 
         {
           status:
             'error',
