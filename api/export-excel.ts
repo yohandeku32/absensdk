@@ -147,6 +147,36 @@ async function fetchPhotoBatch(
   return result.photos;
 }
 
+const PHOTO_BATCH_SIZE = 20;
+const PHOTO_CONCURRENCY = 3;
+
+async function fetchPhotoBatchWithRetry(
+  appsScriptUrl: string,
+  fileIds: string[],
+  maxAttempts = 2
+) {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fetchPhotoBatch(
+        appsScriptUrl,
+        fileIds
+      );
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, 500 * attempt)
+        );
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 async function fetchAllPhotos(
   appsScriptUrl: string,
   fileIds: string[]
@@ -154,22 +184,49 @@ async function fetchAllPhotos(
   const photoMap = new Map<string, PhotoItem>();
 
   /*
-   * 20 foto per request:
-   * - request tidak terlalu besar
-   * - jauh lebih cepat daripada 1 request per foto
-   * - thumbnail Drive dipakai dari Apps Script supaya Excel tidak terlalu besar
+   * OPTIMASI:
+   * - 20 foto per request
+   * - 3 batch diproses paralel
+   * - retry 1x jika Apps Script sementara gagal
+   *
+   * Jadi maksimal sekitar 60 foto sedang diproses
+   * dalam satu gelombang, bukan menunggu batch satu per satu.
    */
-  const batches = chunkArray(fileIds, 20);
-
-  for (const batch of batches) {
-    const photos = await fetchPhotoBatch(
-      appsScriptUrl,
-      batch
+  const batches =
+    chunkArray(
+      fileIds,
+      PHOTO_BATCH_SIZE
     );
 
-    photos.forEach((photo) => {
-      photoMap.set(photo.file_id, photo);
-    });
+  for (
+    let i = 0;
+    i < batches.length;
+    i += PHOTO_CONCURRENCY
+  ) {
+    const wave =
+      batches.slice(
+        i,
+        i + PHOTO_CONCURRENCY
+      );
+
+    const results =
+      await Promise.all(
+        wave.map((batch) =>
+          fetchPhotoBatchWithRetry(
+            appsScriptUrl,
+            batch
+          )
+        )
+      );
+
+    results
+      .flat()
+      .forEach((photo) => {
+        photoMap.set(
+          photo.file_id,
+          photo
+        );
+      });
   }
 
   return photoMap;
@@ -490,11 +547,24 @@ export default {
           )
         );
 
+      const photoStartedAt =
+        Date.now();
+
+      console.log(
+        `[EXPORT EXCEL] Mengambil ${allFileIds.length} foto ` +
+        `dengan concurrency ${PHOTO_CONCURRENCY}...`
+      );
+
       const photoMap =
         await fetchAllPhotos(
           appsScriptUrl,
           allFileIds
         );
+
+      console.log(
+        `[EXPORT EXCEL] Foto selesai dalam ` +
+        `${Date.now() - photoStartedAt} ms.`
+      );
 
       // ==================================================
       // BUAT WORKBOOK
@@ -870,8 +940,16 @@ export default {
       // WRITE XLSX + STREAM KE BROWSER
       // ==================================================
 
+      const excelStartedAt =
+        Date.now();
+
       const workbookBuffer =
         await workbook.xlsx.writeBuffer();
+
+      console.log(
+        `[EXPORT EXCEL] Workbook selesai dalam ` +
+        `${Date.now() - excelStartedAt} ms.`
+      );
 
       const bytes =
         workbookBuffer instanceof Uint8Array
