@@ -1,40 +1,49 @@
 import { connect } from '@tidbcloud/serverless';
 
-const ALLOWED_ORIGIN = 'https://yohandeku32.github.io';
+const ALLOWED_ORIGINS = new Set([
+  'https://absenkuaputu.my.id',
+  'https://yohandeku32.github.io',
+]);
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Max-Age': '86400',
-  'Vary': 'Origin',
-};
+function getCorsHeaders(request: Request) {
+  const origin = request.headers.get('Origin') || '';
 
-function json(data: unknown, status = 200) {
+  const allowedOrigin = ALLOWED_ORIGINS.has(origin)
+    ? origin
+    : 'https://absenkuaputu.my.id';
+
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin',
+  };
+}
+
+function json(
+  request: Request,
+  data: unknown,
+  status = 200
+) {
   return Response.json(data, {
     status,
-    headers: corsHeaders,
+    headers: getCorsHeaders(request),
   });
 }
 
 export default {
   async fetch(request: Request) {
-
-    // ================================================
-    // CORS PREFLIGHT
-    // ================================================
     if (request.method === 'OPTIONS') {
       return new Response(null, {
         status: 204,
-        headers: corsHeaders,
+        headers: getCorsHeaders(request),
       });
     }
 
-    // ================================================
-    // HANYA GET
-    // ================================================
     if (request.method !== 'GET') {
       return json(
+        request,
         {
           status: 'error',
           message: 'Method tidak didukung.',
@@ -48,9 +57,10 @@ export default {
 
       if (!databaseUrl) {
         return json(
+          request,
           {
             status: 'error',
-            message: 'DATABASE_URL belum ditemukan di Vercel.',
+            message: 'DATABASE_URL belum ditemukan',
           },
           500
         );
@@ -76,16 +86,17 @@ export default {
         ORDER BY nama ASC
       `);
 
-      return json({
+      return json(request, {
         status: 'success',
-        total: Array.isArray(guru) ? guru.length : 0,
+        total: guru.length,
         data: guru,
       });
 
     } catch (error) {
-      console.error('API GURU ERROR:', error);
+      console.error('GURU API ERROR:', error);
 
       return json(
+        request,
         {
           status: 'error',
           message:
