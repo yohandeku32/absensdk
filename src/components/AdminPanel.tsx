@@ -47,6 +47,126 @@ const MONTHS = [
   { value: '12', label: 'Desember' }
 ];
 
+
+const BATAS_TERLAMBAT = '07:15';
+
+interface MonthlyRecapRow {
+  id_user: string;
+  nama: string;
+  nipNik: string;
+  golongan: string;
+  jabatan: string;
+  statusKepegawaian: string;
+  jumlahHariKerja: number;
+  tanpaBerita: number;
+  ijin: number;
+  sakit: number;
+  dinasLuar: number;
+  jumlahTidakHadir: number;
+  terlambat: number;
+  jumlahHariHadir: number;
+  keterangan: string;
+}
+
+function parseTimeToMinutes(value?: string | null) {
+  const match = String(value || '').match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return null;
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+
+  if (
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return null;
+  }
+
+  return hour * 60 + minute;
+}
+
+function getWorkDatesMondayToSaturday(
+  year: number,
+  month: number,
+  today = new Date()
+) {
+  const result: string[] = [];
+  const lastDay = new Date(year, month, 0).getDate();
+
+  const isCurrentMonth =
+    year === today.getFullYear() &&
+    month === today.getMonth() + 1;
+
+  const isFutureMonth =
+    year > today.getFullYear() ||
+    (year === today.getFullYear() &&
+      month > today.getMonth() + 1);
+
+  if (isFutureMonth) return result;
+
+  const endDay = isCurrentMonth
+    ? Math.min(today.getDate(), lastDay)
+    : lastDay;
+
+  for (let day = 1; day <= endDay; day++) {
+    const date = new Date(year, month - 1, day);
+
+    // Minggu = 0. Hari kerja sekolah: Senin sampai Sabtu.
+    if (date.getDay() === 0) continue;
+
+    result.push(
+      `${String(year)}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    );
+  }
+
+  return result;
+}
+
+function getRecordCategory(record: AttendanceRecord) {
+  const text = String(record.keterangan || '')
+    .trim()
+    .toLowerCase();
+
+  if (
+    text.includes('tanpa berita') ||
+    text.includes('alpa') ||
+    text.includes('alpha')
+  ) {
+    return 'tanpaBerita' as const;
+  }
+
+  if (text.includes('ijin') || text.includes('izin')) {
+    return 'ijin' as const;
+  }
+
+  if (text.includes('sakit')) {
+    return 'sakit' as const;
+  }
+
+  if (
+    text.includes('dinas luar') ||
+    text === 'dl' ||
+    text.includes('dinas')
+  ) {
+    return 'dinasLuar' as const;
+  }
+
+  return 'hadir' as const;
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function formatDateIndonesia(value: string) {
   const parts = String(value).split('-');
   if (parts.length !== 3) return value || '-';
@@ -153,7 +273,10 @@ export default function AdminPanel({
   const [selectedYear, setSelectedYear] = useState(String(currentYear));
   const [searchQuery, setSearchQuery] = useState('');
 
-  const staffList = MASTER_USERS.filter((u) => u.role !== 'admin');
+  const staffList = useMemo(
+    () => MASTER_USERS.filter((u) => u.role !== 'admin'),
+    []
+  );
 
   const availableYears = useMemo(() => {
     const years = new Set<number>([currentYear]);
@@ -229,6 +352,152 @@ export default function AdminPanel({
     return Array.from(groups.values());
   }, [filteredRecords]);
 
+  const monthlyRecap = useMemo<MonthlyRecapRow[]>(() => {
+    const year = Number(selectedYear);
+    const month = Number(selectedMonth);
+
+    const workDates = getWorkDatesMondayToSaturday(year, month);
+    const workDateSet = new Set(workDates);
+    const monthPrefix = `${selectedYear}-${selectedMonth}`;
+    const lateLimit = parseTimeToMinutes(BATAS_TERLAMBAT) ?? 0;
+    const query = searchQuery.trim().toLowerCase();
+
+    const metadataMap = new Map<string, AttendanceRecord>();
+
+    [...database]
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+      .forEach((record) => {
+        metadataMap.set(String(record.id_user), record);
+      });
+
+    return staffList
+      .filter((staff) => {
+        if (selectedGuru && staff.id !== selectedGuru) {
+          return false;
+        }
+
+        const meta = metadataMap.get(staff.id);
+
+        const searchable = [
+          meta?.name || staff.name,
+          staff.id,
+          meta?.nip,
+          meta?.nik,
+          meta?.jabatan,
+          meta?.status_kepegawaian,
+          meta?.golongan_ruang
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        return query ? searchable.includes(query) : true;
+      })
+      .map((staff) => {
+        const meta = metadataMap.get(staff.id);
+
+        const records = database
+          .filter(
+            (record) =>
+              String(record.id_user) === staff.id &&
+              String(record.date).startsWith(monthPrefix) &&
+              workDateSet.has(String(record.date))
+          )
+          .sort((a, b) =>
+            String(a.date).localeCompare(String(b.date))
+          );
+
+        const dayCategory = new Map<
+          string,
+          ReturnType<typeof getRecordCategory>
+        >();
+
+        const lateDates = new Set<string>();
+
+        records.forEach((record) => {
+          const date = String(record.date);
+          const category = getRecordCategory(record);
+
+          dayCategory.set(date, category);
+
+          if (category === 'hadir') {
+            const masukMinutes = parseTimeToMinutes(
+              getJam(record).masuk
+            );
+
+            if (
+              masukMinutes !== null &&
+              masukMinutes > lateLimit
+            ) {
+              lateDates.add(date);
+            }
+          }
+        });
+
+        let hadir = 0;
+        let ijin = 0;
+        let sakit = 0;
+        let dinasLuar = 0;
+        let explicitTanpaBerita = 0;
+
+        dayCategory.forEach((category) => {
+          if (category === 'hadir') hadir++;
+          if (category === 'ijin') ijin++;
+          if (category === 'sakit') sakit++;
+          if (category === 'dinasLuar') dinasLuar++;
+          if (category === 'tanpaBerita') explicitTanpaBerita++;
+        });
+
+        const accounted =
+          hadir +
+          ijin +
+          sakit +
+          dinasLuar +
+          explicitTanpaBerita;
+
+        const automaticTanpaBerita = Math.max(
+          0,
+          workDates.length - accounted
+        );
+
+        const tanpaBerita =
+          explicitTanpaBerita + automaticTanpaBerita;
+
+        const jumlahTidakHadir =
+          tanpaBerita + ijin + sakit + dinasLuar;
+
+        return {
+          id_user: staff.id,
+          nama: meta?.name || staff.name,
+          nipNik:
+            meta?.nip ||
+            meta?.nik ||
+            staff.id ||
+            '-',
+          golongan: meta?.golongan_ruang || '-',
+          jabatan: meta?.jabatan || '-',
+          statusKepegawaian:
+            meta?.status_kepegawaian || '-',
+          jumlahHariKerja: workDates.length,
+          tanpaBerita,
+          ijin,
+          sakit,
+          dinasLuar,
+          jumlahTidakHadir,
+          terlambat: lateDates.size,
+          jumlahHariHadir: hadir,
+          keterangan: '-'
+        };
+      });
+  }, [
+    database,
+    searchQuery,
+    selectedGuru,
+    selectedMonth,
+    selectedYear,
+    staffList
+  ]);
+
   const selectedMonthLabel =
     MONTHS.find((month) => month.value === selectedMonth)?.label || '';
 
@@ -284,6 +553,190 @@ export default function AdminPanel({
     const url = `${EXPORT_WORD_URL}?${params.toString()}`;
 
     window.open(url, '_blank');
+  };
+
+  const handlePrintMonthlyRecap = () => {
+    const printWindow = window.open(
+      '',
+      '_blank',
+      'width=1600,height=900'
+    );
+
+    if (!printWindow) {
+      alert(
+        'Popup diblokir browser. Izinkan popup untuk mencetak rekap.'
+      );
+      return;
+    }
+
+    const rowsHtml = monthlyRecap
+      .map(
+        (row, index) => `
+          <tr>
+            <td>${index + 1}</td>
+            <td class="left">${escapeHtml(row.nama)}</td>
+            <td>${escapeHtml(row.nipNik)}</td>
+            <td>${escapeHtml(row.golongan)}</td>
+            <td class="left">${escapeHtml(row.jabatan)}</td>
+            <td>${escapeHtml(row.statusKepegawaian)}</td>
+            <td>${row.jumlahHariKerja}</td>
+            <td>${row.tanpaBerita}</td>
+            <td>${row.ijin}</td>
+            <td>${row.sakit}</td>
+            <td>${row.dinasLuar}</td>
+            <td>${row.jumlahTidakHadir}</td>
+            <td>${row.terlambat}</td>
+            <td>${row.jumlahHariHadir}</td>
+            <td>${escapeHtml(row.keterangan)}</td>
+          </tr>
+        `
+      )
+      .join('');
+
+    printWindow.document.open();
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html lang="id">
+        <head>
+          <meta charset="utf-8" />
+          <title>Rekap Absensi ${escapeHtml(selectedMonthLabel)} ${escapeHtml(selectedYear)}</title>
+          <style>
+            @page {
+              size: A4 landscape;
+              margin: 6mm;
+            }
+
+            * {
+              box-sizing: border-box;
+            }
+
+            body {
+              margin: 0;
+              font-family: Arial, sans-serif;
+              color: #000;
+              background: #fff;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+
+            h1 {
+              margin: 0;
+              text-align: center;
+              font-size: 14pt;
+            }
+
+            h2 {
+              margin: 2mm 0 0;
+              text-align: center;
+              font-size: 11pt;
+            }
+
+            .period {
+              margin: 1.5mm 0 4mm;
+              text-align: center;
+              font-size: 9pt;
+              font-weight: 700;
+              text-transform: uppercase;
+            }
+
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              table-layout: fixed;
+            }
+
+            thead {
+              display: table-header-group;
+            }
+
+            th,
+            td {
+              border: 1px solid #000;
+              padding: 1.5mm 1mm;
+              text-align: center;
+              vertical-align: middle;
+              font-size: 6.8pt;
+              line-height: 1.15;
+              overflow-wrap: anywhere;
+            }
+
+            th {
+              font-weight: 700;
+            }
+
+            td.left {
+              text-align: left;
+            }
+
+            tr {
+              break-inside: avoid;
+              page-break-inside: avoid;
+            }
+
+            .note {
+              margin-top: 3mm;
+              font-size: 7pt;
+            }
+          </style>
+        </head>
+
+        <body>
+          <h1>REKAPITULASI ABSENSI GURU DAN PEGAWAI</h1>
+          <h2>SDK ST. YOSEPH KUAPUTU</h2>
+
+          <div class="period">
+            BULAN ${escapeHtml(selectedMonthLabel)} ${escapeHtml(selectedYear)}
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th rowspan="2">No.</th>
+                <th rowspan="2">NAMA</th>
+                <th rowspan="2">NIP / NIK</th>
+                <th rowspan="2">PANGKAT / GOL</th>
+                <th rowspan="2">JABATAN</th>
+                <th rowspan="2">STATUS</th>
+                <th rowspan="2">JUMLAH<br>HARI KERJA</th>
+                <th colspan="6">KETERANGAN</th>
+                <th rowspan="2">JUMLAH<br>HARI HADIR</th>
+                <th rowspan="2">KETERANGAN</th>
+              </tr>
+
+              <tr>
+                <th>TANPA<br>BERITA</th>
+                <th>IJIN</th>
+                <th>SAKIT</th>
+                <th>DINAS<br>LUAR</th>
+                <th>JUMLAH</th>
+                <th>TERLAMBAT</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+
+          <div class="note">
+            Hari kerja dihitung Senin s.d. Sabtu.
+            Untuk bulan berjalan hanya dihitung sampai tanggal hari ini.
+            Batas terlambat: ${escapeHtml(BATAS_TERLAMBAT)}.
+          </div>
+
+          <script>
+            window.onload = function () {
+              setTimeout(function () {
+                window.print();
+              }, 250);
+            };
+          <\/script>
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
   };
 
   const handlePrint = async () => {
@@ -623,6 +1076,15 @@ export default function AdminPanel({
             </button>
 
             <button
+              onClick={handlePrintMonthlyRecap}
+              disabled={monthlyRecap.length === 0}
+              className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-sans text-xs font-bold text-white shadow-lg shadow-violet-600/10 transition-all hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Printer className="h-4 w-4" />
+              Cetak Rekap Bulanan
+            </button>
+
+            <button
               onClick={handlePrint}
               disabled={filteredRecords.length === 0}
               className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-sans text-xs font-bold text-white shadow-lg shadow-blue-600/10 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
@@ -632,6 +1094,79 @@ export default function AdminPanel({
             </button>
           </div>
         </div>
+
+        {/* REKAP BULANAN */}
+        <section className="screen-only overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="font-display text-lg font-black text-slate-900">
+                Rekap Bulanan
+              </h3>
+              <p className="mt-1 font-sans text-xs font-semibold text-slate-400">
+                Hari kerja Senin–Sabtu • Batas terlambat {BATAS_TERLAMBAT}
+              </p>
+            </div>
+
+            <button
+              onClick={handlePrintMonthlyRecap}
+              disabled={monthlyRecap.length === 0}
+              className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-sans text-xs font-bold text-white transition-all hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Printer className="h-4 w-4" />
+              Cetak Rekap
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1500px] border-collapse font-sans text-xs">
+              <thead>
+                <tr className="bg-slate-50 text-slate-700">
+                  <th rowSpan={2} className="border border-slate-200 px-2 py-3">No.</th>
+                  <th rowSpan={2} className="border border-slate-200 px-3 py-3">Nama</th>
+                  <th rowSpan={2} className="border border-slate-200 px-3 py-3">NIP / NIK</th>
+                  <th rowSpan={2} className="border border-slate-200 px-3 py-3">Pangkat/Gol</th>
+                  <th rowSpan={2} className="border border-slate-200 px-3 py-3">Jabatan</th>
+                  <th rowSpan={2} className="border border-slate-200 px-3 py-3">Status</th>
+                  <th rowSpan={2} className="border border-slate-200 px-3 py-3">Jumlah Hari Kerja</th>
+                  <th colSpan={6} className="border border-slate-200 px-3 py-2">Keterangan</th>
+                  <th rowSpan={2} className="border border-slate-200 px-3 py-3">Jumlah Hari Hadir</th>
+                  <th rowSpan={2} className="border border-slate-200 px-3 py-3">Keterangan</th>
+                </tr>
+
+                <tr className="bg-slate-50 text-slate-700">
+                  <th className="border border-slate-200 px-2 py-2">Tanpa Berita</th>
+                  <th className="border border-slate-200 px-2 py-2">Ijin</th>
+                  <th className="border border-slate-200 px-2 py-2">Sakit</th>
+                  <th className="border border-slate-200 px-2 py-2">Dinas Luar</th>
+                  <th className="border border-slate-200 px-2 py-2">Jumlah</th>
+                  <th className="border border-slate-200 px-2 py-2">Terlambat</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {monthlyRecap.map((row, index) => (
+                  <tr key={row.id_user} className="text-slate-700">
+                    <td className="border border-slate-200 px-2 py-3 text-center">{index + 1}</td>
+                    <td className="border border-slate-200 px-3 py-3 font-bold text-slate-900">{row.nama}</td>
+                    <td className="border border-slate-200 px-3 py-3 text-center">{row.nipNik}</td>
+                    <td className="border border-slate-200 px-3 py-3 text-center">{row.golongan}</td>
+                    <td className="border border-slate-200 px-3 py-3">{row.jabatan}</td>
+                    <td className="border border-slate-200 px-3 py-3 text-center">{row.statusKepegawaian}</td>
+                    <td className="border border-slate-200 px-2 py-3 text-center font-bold">{row.jumlahHariKerja}</td>
+                    <td className="border border-slate-200 px-2 py-3 text-center">{row.tanpaBerita}</td>
+                    <td className="border border-slate-200 px-2 py-3 text-center">{row.ijin}</td>
+                    <td className="border border-slate-200 px-2 py-3 text-center">{row.sakit}</td>
+                    <td className="border border-slate-200 px-2 py-3 text-center">{row.dinasLuar}</td>
+                    <td className="border border-slate-200 px-2 py-3 text-center font-bold">{row.jumlahTidakHadir}</td>
+                    <td className="border border-slate-200 px-2 py-3 text-center">{row.terlambat}</td>
+                    <td className="border border-slate-200 px-2 py-3 text-center font-bold text-emerald-700">{row.jumlahHariHadir}</td>
+                    <td className="border border-slate-200 px-3 py-3 text-center">{row.keterangan}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
         {/* REPORT */}
         <div className="report-shell overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
