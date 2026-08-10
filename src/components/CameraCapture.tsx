@@ -19,6 +19,8 @@ export default function CameraCapture({
 }: CameraCaptureProps) {
   const [photo, setPhoto] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
+  const [photoInfo, setPhotoInfo] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -28,14 +30,184 @@ export default function CameraCapture({
     }
   };
 
-  const processFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result && typeof event.target.result === 'string') {
-        setPhoto(event.target.result);
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  const blobToDataUrl = (blob: Blob) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+        } else {
+          reject(new Error('Gagal membaca hasil kompresi foto.'));
+        }
+      };
+
+      reader.onerror = () => {
+        reject(new Error('Gagal membaca hasil kompresi foto.'));
+      };
+
+      reader.readAsDataURL(blob);
+    });
+
+  const loadImage = (file: File) =>
+    new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      const objectUrl = URL.createObjectURL(file);
+
+      image.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(image);
+      };
+
+      image.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(
+          new Error(
+            'Foto tidak dapat dibaca. Gunakan gambar JPEG, PNG, atau WebP.'
+          )
+        );
+      };
+
+      image.src = objectUrl;
+    });
+
+  const canvasToBlob = (
+    canvas: HTMLCanvasElement,
+    quality: number
+  ) =>
+    new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('Gagal mengompres foto.'));
+          }
+        },
+        'image/jpeg',
+        quality
+      );
+    });
+
+  const compressImage = async (file: File) => {
+    /*
+     * Foto dikompres SEBELUM dikirim ke Vercel.
+     * Target dibuat jauh di bawah limit payload Vercel agar aman
+     * setelah foto diubah menjadi Base64 dan dibungkus JSON.
+     */
+    const TARGET_BYTES = 1.8 * 1024 * 1024;
+    const MAX_DIMENSION = 1600;
+
+    const image = await loadImage(file);
+
+    let width = image.naturalWidth;
+    let height = image.naturalHeight;
+
+    const scale = Math.min(
+      1,
+      MAX_DIMENSION / Math.max(width, height)
+    );
+
+    width = Math.max(1, Math.round(width * scale));
+    height = Math.max(1, Math.round(height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      throw new Error('Browser tidak mendukung pemrosesan foto.');
+    }
+
+    ctx.drawImage(image, 0, 0, width, height);
+
+    let quality = 0.82;
+    let blob = await canvasToBlob(canvas, quality);
+
+    while (blob.size > TARGET_BYTES && quality > 0.5) {
+      quality -= 0.08;
+      blob = await canvasToBlob(canvas, quality);
+    }
+
+    /*
+     * Jika foto masih besar, perkecil resolusi satu tahap lagi.
+     */
+    if (blob.size > TARGET_BYTES) {
+      const reducedCanvas = document.createElement('canvas');
+      const reducedScale = 0.75;
+
+      reducedCanvas.width = Math.max(
+        1,
+        Math.round(canvas.width * reducedScale)
+      );
+
+      reducedCanvas.height = Math.max(
+        1,
+        Math.round(canvas.height * reducedScale)
+      );
+
+      const reducedCtx = reducedCanvas.getContext('2d');
+
+      if (!reducedCtx) {
+        throw new Error('Browser tidak mendukung pemrosesan foto.');
       }
-    };
-    reader.readAsDataURL(file);
+
+      reducedCtx.drawImage(
+        canvas,
+        0,
+        0,
+        reducedCanvas.width,
+        reducedCanvas.height
+      );
+
+      blob = await canvasToBlob(reducedCanvas, 0.68);
+    }
+
+    return blob;
+  };
+
+  const processFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      alert('File harus berupa gambar.');
+      return;
+    }
+
+    setIsProcessingPhoto(true);
+    setPhotoInfo('');
+
+    try {
+      const compressed = await compressImage(file);
+      const dataUrl = await blobToDataUrl(compressed);
+
+      setPhoto(dataUrl);
+      setPhotoInfo(
+        `${formatSize(file.size)} → ${formatSize(compressed.size)}`
+      );
+    } catch (error) {
+      console.error('PHOTO COMPRESSION ERROR:', error);
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : 'Foto gagal diproses.'
+      );
+
+      setPhoto(null);
+    } finally {
+      setIsProcessingPhoto(false);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -64,6 +236,7 @@ export default function CameraCapture({
 
   const handleResetPhoto = () => {
     setPhoto(null);
+    setPhotoInfo('');
   };
 
   return (
@@ -89,7 +262,22 @@ export default function CameraCapture({
 
         {/* Capture Body */}
         <div className="p-6 flex-1 flex flex-col justify-center min-h-[280px]">
-          {isSubmitting ? (
+          {isProcessingPhoto ? (
+            <div className="text-center py-12 space-y-5">
+              <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
+                <div className="w-12 h-12 border-4 border-slate-100 dark:border-slate-800 border-t-emerald-500 rounded-full animate-spin" />
+              </div>
+
+              <div>
+                <h4 className="font-display font-black text-slate-800 dark:text-white text-lg">
+                  Menyiapkan Foto...
+                </h4>
+                <p className="text-slate-400 dark:text-slate-500 font-sans font-medium text-xs mt-1">
+                  Foto besar sedang diperkecil agar upload lebih cepat
+                </p>
+              </div>
+            </div>
+          ) : isSubmitting ? (
             <div className="text-center py-12 space-y-6">
               <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
                 <div className="w-16 h-16 rounded-full bg-emerald-500/15 animate-ping absolute" />
@@ -122,6 +310,13 @@ export default function CameraCapture({
                   <Check className="w-5 h-5 stroke-[2.5]" />
                 </div>
               </div>
+              {photoInfo && (
+                <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 px-4 py-2 text-center">
+                  <p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 font-sans">
+                    Foto dioptimalkan: {photoInfo}
+                  </p>
+                </div>
+              )}
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleResetPhoto}
@@ -145,7 +340,11 @@ export default function CameraCapture({
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => {
+                if (!isProcessingPhoto) {
+                  fileInputRef.current?.click();
+                }
+              }}
               className={`border-3 border-dashed rounded-3xl p-10 text-center cursor-pointer transition-all duration-300 flex flex-col items-center justify-center gap-4 ${
                 dragOver
                   ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 scale-[1.02]'
