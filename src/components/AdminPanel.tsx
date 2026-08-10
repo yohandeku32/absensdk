@@ -235,6 +235,9 @@ export default function AdminPanel({
   const EXPORT_EXCEL_URL =
     'https://absensdk.vercel.app/api/export-excel';
 
+  const EXPORT_WORD_URL =
+    'https://absensdk.vercel.app/api/export-word';
+
   const handleRefresh = async () => {
     showLoader('Memperbarui Data TiDB...');
     try {
@@ -260,6 +263,25 @@ export default function AdminPanel({
     }
 
     const url = `${EXPORT_EXCEL_URL}?${params.toString()}`;
+
+    window.open(url, '_blank');
+  };
+
+  const handleDownloadWord = () => {
+    if (filteredRecords.length === 0) {
+      return;
+    }
+
+    const params = new URLSearchParams({
+      bulan: selectedMonth,
+      tahun: selectedYear
+    });
+
+    if (selectedGuru) {
+      params.set('id_user', selectedGuru);
+    }
+
+    const url = `${EXPORT_WORD_URL}?${params.toString()}`;
 
     window.open(url, '_blank');
   };
@@ -589,6 +611,15 @@ export default function AdminPanel({
             >
               <Download className="h-4 w-4" />
               Download Excel
+            </button>
+
+            <button
+              onClick={handleDownloadWord}
+              disabled={filteredRecords.length === 0}
+              className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 font-sans text-xs font-bold text-white shadow-lg shadow-indigo-600/10 transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <FileText className="h-4 w-4" />
+              Download Word
             </button>
 
             <button
