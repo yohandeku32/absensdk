@@ -1,17 +1,58 @@
 import { connect } from '@tidbcloud/serverless';
 
+const ALLOWED_ORIGIN = 'https://yohandeku32.github.io';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Max-Age': '86400',
+  'Vary': 'Origin',
+};
+
+function json(data: unknown, status = 200) {
+  return Response.json(data, {
+    status,
+    headers: corsHeaders,
+  });
+}
+
 export default {
   async fetch(request: Request) {
+
+    // ================================================
+    // CORS PREFLIGHT
+    // ================================================
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders,
+      });
+    }
+
+    // ================================================
+    // HANYA GET
+    // ================================================
+    if (request.method !== 'GET') {
+      return json(
+        {
+          status: 'error',
+          message: 'Method tidak didukung.',
+        },
+        405
+      );
+    }
+
     try {
       const databaseUrl = process.env.DATABASE_URL;
 
       if (!databaseUrl) {
-        return Response.json(
+        return json(
           {
             status: 'error',
-            message: 'DATABASE_URL belum ditemukan',
+            message: 'DATABASE_URL belum ditemukan di Vercel.',
           },
-          { status: 500 }
+          500
         );
       }
 
@@ -35,16 +76,16 @@ export default {
         ORDER BY nama ASC
       `);
 
-      return Response.json({
+      return json({
         status: 'success',
-        total: guru.length,
+        total: Array.isArray(guru) ? guru.length : 0,
         data: guru,
       });
 
     } catch (error) {
-      console.error(error);
+      console.error('API GURU ERROR:', error);
 
-      return Response.json(
+      return json(
         {
           status: 'error',
           message:
@@ -52,7 +93,7 @@ export default {
               ? error.message
               : String(error),
         },
-        { status: 500 }
+        500
       );
     }
   },
