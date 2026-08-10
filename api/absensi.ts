@@ -10,7 +10,7 @@ const corsHeaders = {
     ALLOWED_ORIGIN,
 
   'Access-Control-Allow-Methods':
-    'GET, POST, OPTIONS',
+    'GET, POST, DELETE, OPTIONS',
 
   'Access-Control-Allow-Headers':
     'Content-Type',
@@ -313,6 +313,160 @@ export default {
         return json(data);
       }
 
+
+
+
+
+      // ==================================================
+      // DELETE
+      // HAPUS SATU DATA ABSENSI + FOTO GOOGLE DRIVE
+      // KUNCI DATA: id_user + tanggal
+      // ==================================================
+
+      if (request.method === 'DELETE') {
+
+        const idUser =
+          String(
+            url.searchParams.get('id_user') || ''
+          ).trim();
+
+        const tanggal =
+          String(
+            url.searchParams.get('tanggal') || ''
+          ).trim();
+
+
+        if (!idUser || !tanggal) {
+          return json(
+            {
+              status: 'error',
+              message:
+                'id_user dan tanggal wajib diisi.',
+            },
+            400
+          );
+        }
+
+
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) {
+          return json(
+            {
+              status: 'error',
+              message:
+                'Format tanggal tidak valid.',
+            },
+            400
+          );
+        }
+
+
+        const existing =
+          await conn.execute(
+            `
+              SELECT
+                a.id,
+                a.foto_masuk_file_id,
+                a.foto_pulang_file_id
+              FROM absensi a
+              WHERE
+                a.id_user = ?
+                AND a.tanggal = ?
+              LIMIT 1
+            `,
+            [
+              idUser,
+              tanggal
+            ]
+          ) as any[];
+
+
+        if (
+          !Array.isArray(existing) ||
+          existing.length === 0
+        ) {
+          return json(
+            {
+              status: 'error',
+              message:
+                'Data absensi tidak ditemukan.',
+            },
+            404
+          );
+        }
+
+
+        const row =
+          existing[0];
+
+
+        const fileIds =
+          [
+            row.foto_masuk_file_id,
+            row.foto_pulang_file_id
+          ]
+            .filter(Boolean)
+            .map((value) => String(value));
+
+
+        // Hapus data TiDB terlebih dahulu.
+        await conn.execute(
+          `
+            DELETE FROM absensi
+            WHERE
+              id_user = ?
+              AND tanggal = ?
+          `,
+          [
+            idUser,
+            tanggal
+          ]
+        );
+
+
+        // Foto dipindahkan ke Sampah Google Drive.
+        // Jika gagal, data TiDB tetap dianggap sudah terhapus.
+        let fotoWarning:
+          string | null = null;
+
+
+        if (
+          appsScriptUrl &&
+          fileIds.length > 0
+        ) {
+
+          const hasilHapusFoto =
+            await hapusFotoDrive(
+              appsScriptUrl,
+              fileIds
+            );
+
+
+          if (
+            hasilHapusFoto.status !==
+            'success'
+          ) {
+            fotoWarning =
+              hasilHapusFoto.message ||
+              'Foto Google Drive tidak dapat dihapus.';
+          }
+        }
+
+
+        return json({
+          status:
+            'success',
+
+          message:
+            fotoWarning
+
+              ? 'Data absensi berhasil dihapus dari TiDB, tetapi ada foto Drive yang tidak dapat dipindahkan ke Sampah.'
+
+              : 'Data absensi dan foto berhasil dihapus.',
+
+          warning:
+            fotoWarning
+        });
+      }
 
 
       // ==================================================
@@ -1033,6 +1187,93 @@ export default {
 };
 
 
+
+
+
+// ======================================================
+// HAPUS FOTO GOOGLE DRIVE MELALUI APPS SCRIPT
+// FOTO DIPINDAHKAN KE SAMPAH, BUKAN HAPUS PERMANEN
+// ======================================================
+
+async function hapusFotoDrive(
+  appsScriptUrl: string,
+  fileIds: string[]
+) {
+
+  try {
+
+    const response =
+      await fetch(
+        appsScriptUrl,
+        {
+          method:
+            'POST',
+
+          headers: {
+            'Content-Type':
+              'text/plain;charset=utf-8',
+          },
+
+          body:
+            JSON.stringify({
+              action:
+                'trash_photos_by_ids',
+
+              file_ids:
+                fileIds,
+            }),
+        }
+      );
+
+
+    const text =
+      await response.text();
+
+
+    try {
+
+      return JSON.parse(
+        text
+      );
+
+    } catch {
+
+      console.error(
+        'RESPONSE HAPUS FOTO APPS SCRIPT:',
+        text
+      );
+
+      return {
+        status:
+          'error',
+
+        message:
+          'Response Apps Script bukan JSON.',
+      };
+    }
+
+
+  } catch (error) {
+
+    console.error(
+      'HAPUS FOTO DRIVE ERROR:',
+      error
+    );
+
+
+    return {
+      status:
+        'error',
+
+      message:
+        error instanceof Error
+
+          ? error.message
+
+          : String(error),
+    };
+  }
+}
 
 // ======================================================
 // UPLOAD FOTO KE GOOGLE APPS SCRIPT
