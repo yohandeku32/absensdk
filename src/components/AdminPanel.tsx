@@ -562,6 +562,7 @@ export default function AdminPanel({
   const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
   const currentYear = now.getFullYear();
 
+  const [activeView, setActiveView] = useState<'laporan' | 'rekap'>('laporan');
   const [selectedGuru, setSelectedGuru] = useState('');
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [selectedYear, setSelectedYear] = useState(String(currentYear));
@@ -2050,6 +2051,37 @@ export default function AdminPanel({
           </button>
         </header>
 
+        {/* TAB NAVIGATION */}
+        <div className="no-print screen-only rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onClick={() => setActiveView('laporan')}
+              className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-3 font-sans text-xs font-black transition-all ${
+                activeView === 'laporan'
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+              }`}
+            >
+              <FileText className="h-4 w-4" />
+              Laporan Absensi
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveView('rekap')}
+              className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-3 font-sans text-xs font-black transition-all ${
+                activeView === 'rekap'
+                  ? 'bg-violet-600 text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-violet-50 hover:text-violet-700'
+              }`}
+            >
+              <CalendarCheck className="h-4 w-4" />
+              Rekap Bulanan
+            </button>
+          </div>
+        </div>
+
         {/* FILTER */}
         <div className="no-print screen-only grid grid-cols-1 gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-1.5">
@@ -2133,11 +2165,20 @@ export default function AdminPanel({
         {/* ACTION */}
         <div className="no-print screen-only flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="font-sans text-xs font-semibold text-slate-500">
-            <span className="font-black text-slate-800">{groupedRecords.length}</span> guru/pegawai •{' '}
-            <span className="font-black text-slate-800">{filteredRecords.length}</span> baris absensi
+            {activeView === 'laporan' ? (
+              <>
+                <span className="font-black text-slate-800">{groupedRecords.length}</span> guru/pegawai •{' '}
+                <span className="font-black text-slate-800">{filteredRecords.length}</span> baris absensi
+              </>
+            ) : (
+              <>
+                <span className="font-black text-slate-800">{monthlyRecap.length}</span> guru/pegawai • Rekap{' '}
+                <span className="font-black text-slate-800">{selectedMonthLabel} {selectedYear}</span>
+              </>
+            )}
           </p>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
             <button
               onClick={handleRefresh}
               className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-800 px-5 py-3 font-sans text-xs font-bold text-white transition-all hover:bg-slate-900"
@@ -2154,75 +2195,72 @@ export default function AdminPanel({
               Upload Manual
             </button>
 
-            <button
-              onClick={handleDownloadExcel}
-              disabled={filteredRecords.length === 0}
-              className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-sans text-xs font-bold text-white shadow-lg shadow-emerald-600/10 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Download className="h-4 w-4" />
-              Download Excel
-            </button>
+            {activeView === 'laporan' ? (
+              <>
+                <button
+                  onClick={handleDownloadExcel}
+                  disabled={filteredRecords.length === 0}
+                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-sans text-xs font-bold text-white shadow-lg shadow-emerald-600/10 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Excel
+                </button>
 
-            <button
-              onClick={handleDownloadWord}
-              disabled={filteredRecords.length === 0}
-              className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 font-sans text-xs font-bold text-white shadow-lg shadow-indigo-600/10 transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <FileText className="h-4 w-4" />
-              Download Word
-            </button>
+                <button
+                  onClick={handleDownloadWord}
+                  disabled={filteredRecords.length === 0}
+                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 font-sans text-xs font-bold text-white shadow-lg shadow-indigo-600/10 transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <FileText className="h-4 w-4" />
+                  Download Word
+                </button>
 
-            <button
-              onClick={handlePrintMonthlyRecap}
-              disabled={monthlyRecap.length === 0}
-              className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-sans text-xs font-bold text-white shadow-lg shadow-violet-600/10 transition-all hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Printer className="h-4 w-4" />
-              Cetak Rekap Bulanan
-            </button>
+                <button
+                  onClick={handlePrint}
+                  disabled={filteredRecords.length === 0}
+                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-sans text-xs font-bold text-white shadow-lg shadow-blue-600/10 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Printer className="h-4 w-4" />
+                  Cetak Laporan
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleDownloadMonthlyRecapWord}
+                  disabled={monthlyRecap.length === 0}
+                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 font-sans text-xs font-bold text-white transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <FileText className="h-4 w-4" />
+                  Download Word Rekap
+                </button>
 
-            <button
-              onClick={handlePrint}
-              disabled={filteredRecords.length === 0}
-              className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-sans text-xs font-bold text-white shadow-lg shadow-blue-600/10 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Printer className="h-4 w-4" />
-              Cetak Laporan
-            </button>
+                <button
+                  onClick={handlePrintMonthlyRecap}
+                  disabled={monthlyRecap.length === 0}
+                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-sans text-xs font-bold text-white transition-all hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Printer className="h-4 w-4" />
+                  Cetak Rekap
+                </button>
+              </>
+            )}
           </div>
         </div>
 
         {/* REKAP BULANAN */}
-        <section className="screen-only overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 className="font-display text-lg font-black text-slate-900">
-                Rekap Bulanan
-              </h3>
-              <p className="mt-1 font-sans text-xs font-semibold text-slate-400">
-                Hari kerja Senin–Sabtu • Batas terlambat {BATAS_TERLAMBAT}
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                onClick={handleDownloadMonthlyRecapWord}
-                disabled={monthlyRecap.length === 0}
-                className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 font-sans text-xs font-bold text-white transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <FileText className="h-4 w-4" />
-                Download Word Rekap
-              </button>
-
-              <button
-                onClick={handlePrintMonthlyRecap}
-                disabled={monthlyRecap.length === 0}
-                className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-sans text-xs font-bold text-white transition-all hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Printer className="h-4 w-4" />
-                Cetak Rekap
-              </button>
-            </div>
+        <section
+          className={`screen-only overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm ${
+            activeView === 'rekap' ? '' : 'hidden'
+          }`}
+        >
+          <div className="border-b border-slate-200 px-5 py-4">
+            <h3 className="font-display text-lg font-black text-slate-900">
+              Rekap Bulanan
+            </h3>
+            <p className="mt-1 font-sans text-xs font-semibold text-slate-400">
+              Hari kerja Senin–Sabtu • Batas terlambat {BATAS_TERLAMBAT}
+            </p>
           </div>
 
           <div className="mx-4 mt-4 border-b-4 border-double border-slate-900 px-3 pb-4">
@@ -2335,7 +2373,11 @@ export default function AdminPanel({
         </section>
 
         {/* REPORT */}
-        <div className="report-shell overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div
+          className={`report-shell overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm ${
+            activeView === 'laporan' ? '' : 'hidden'
+          }`}
+        >
           <div className="border-b border-slate-200 px-5 py-5 text-center sm:px-8">
             <h1 className="font-display text-xl font-black uppercase text-slate-900 print:text-[14pt]">
               Laporan Absensi Guru dan Pegawai
