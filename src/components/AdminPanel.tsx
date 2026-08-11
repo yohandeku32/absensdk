@@ -10,7 +10,9 @@ import {
   Printer,
   RefreshCw,
   Search,
-  Trash2
+  Trash2,
+  UploadCloud,
+  X
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -346,6 +348,166 @@ function AttendancePhoto({
   );
 }
 
+
+function getLocalDateInputValue() {
+  const now = new Date();
+  const local = new Date(
+    now.getTime() - now.getTimezoneOffset() * 60000
+  );
+
+  return local.toISOString().slice(0, 10);
+}
+
+function formatUploadFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+
+  if (bytes < 1024 * 1024) {
+    return `${Math.round(bytes / 1024)} KB`;
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function manualBlobToDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Gagal membaca foto.'));
+      }
+    };
+
+    reader.onerror = () => {
+      reject(new Error('Gagal membaca foto.'));
+    };
+
+    reader.readAsDataURL(blob);
+  });
+}
+
+function manualLoadImage(file: File) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(
+        new Error(
+          'Foto tidak dapat dibaca. Gunakan JPEG, PNG, atau WebP.'
+        )
+      );
+    };
+
+    image.src = objectUrl;
+  });
+}
+
+function manualCanvasToBlob(
+  canvas: HTMLCanvasElement,
+  quality: number
+) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('Gagal mengoptimalkan foto.'));
+        }
+      },
+      'image/jpeg',
+      quality
+    );
+  });
+}
+
+async function optimizeAdminPhoto(file: File) {
+  /*
+   * Sama seperti upload absensi normal:
+   * foto dioptimalkan di browser sebelum masuk Vercel.
+   * Satu request hanya membawa satu foto agar aman dari limit payload.
+   */
+  const TARGET_BYTES = 1.8 * 1024 * 1024;
+  const MAX_DIMENSION = 1600;
+
+  const image = await manualLoadImage(file);
+
+  let width = image.naturalWidth;
+  let height = image.naturalHeight;
+
+  const scale = Math.min(
+    1,
+    MAX_DIMENSION / Math.max(width, height)
+  );
+
+  width = Math.max(1, Math.round(width * scale));
+  height = Math.max(1, Math.round(height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) {
+    throw new Error('Browser tidak mendukung pemrosesan foto.');
+  }
+
+  ctx.drawImage(image, 0, 0, width, height);
+
+  let quality = 0.84;
+  let blob = await manualCanvasToBlob(canvas, quality);
+
+  while (blob.size > TARGET_BYTES && quality > 0.52) {
+    quality -= 0.08;
+    blob = await manualCanvasToBlob(canvas, quality);
+  }
+
+  if (blob.size > TARGET_BYTES) {
+    const reducedCanvas = document.createElement('canvas');
+
+    reducedCanvas.width = Math.max(
+      1,
+      Math.round(canvas.width * 0.75)
+    );
+
+    reducedCanvas.height = Math.max(
+      1,
+      Math.round(canvas.height * 0.75)
+    );
+
+    const reducedCtx = reducedCanvas.getContext('2d');
+
+    if (!reducedCtx) {
+      throw new Error('Browser tidak mendukung pemrosesan foto.');
+    }
+
+    reducedCtx.drawImage(
+      canvas,
+      0,
+      0,
+      reducedCanvas.width,
+      reducedCanvas.height
+    );
+
+    blob = await manualCanvasToBlob(
+      reducedCanvas,
+      0.7
+    );
+  }
+
+  return blob;
+}
+
 export default function AdminPanel({
   user,
   database,
@@ -363,6 +525,15 @@ export default function AdminPanel({
   const [selectedYear, setSelectedYear] = useState(String(currentYear));
   const [searchQuery, setSearchQuery] = useState('');
   const [deletingKey, setDeletingKey] = useState('');
+  const [manualUploadOpen, setManualUploadOpen] = useState(false);
+  const [manualGuru, setManualGuru] = useState('');
+  const [manualDate, setManualDate] = useState(getLocalDateInputValue());
+  const [manualJamMasuk, setManualJamMasuk] = useState('');
+  const [manualJamPulang, setManualJamPulang] = useState('');
+  const [manualPhotoMasuk, setManualPhotoMasuk] = useState<File | null>(null);
+  const [manualPhotoPulang, setManualPhotoPulang] = useState<File | null>(null);
+  const [manualNote, setManualNote] = useState('');
+  const [manualSaving, setManualSaving] = useState(false);
 
   const staffList = useMemo(
     () => MASTER_USERS.filter((u) => u.role !== 'admin'),
@@ -442,6 +613,18 @@ export default function AdminPanel({
 
     return Array.from(groups.values());
   }, [filteredRecords]);
+
+  const manualExistingRecord = useMemo(() => {
+    if (!manualGuru || !manualDate) {
+      return undefined;
+    }
+
+    return database.find(
+      (record) =>
+        String(record.id_user) === manualGuru &&
+        String(record.date) === manualDate
+    );
+  }, [database, manualDate, manualGuru]);
 
   const monthlyRecap = useMemo<MonthlyRecapRow[]>(() => {
     const year = Number(selectedYear);
@@ -610,6 +793,180 @@ export default function AdminPanel({
     }
   };
 
+
+  const resetManualUploadForm = () => {
+    setManualGuru('');
+    setManualDate(getLocalDateInputValue());
+    setManualJamMasuk('');
+    setManualJamPulang('');
+    setManualPhotoMasuk(null);
+    setManualPhotoPulang(null);
+    setManualNote('');
+  };
+
+  const closeManualUpload = () => {
+    if (manualSaving) return;
+
+    setManualUploadOpen(false);
+    resetManualUploadForm();
+  };
+
+  const sendManualPhoto = async (
+    status: 'MASUK' | 'PULANG',
+    file: File,
+    time: string
+  ) => {
+    const optimized = await optimizeAdminPhoto(file);
+    const photo = await manualBlobToDataUrl(optimized);
+
+    const response = await fetch(
+      ABSENSI_API_URL,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          admin_manual: true,
+          id_user: manualGuru,
+          date: manualDate,
+          time,
+          status,
+          photo,
+          note: manualNote
+        })
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || result.status !== 'success') {
+      throw new Error(
+        result.message ||
+        `Upload foto ${status.toLowerCase()} gagal.`
+      );
+    }
+
+    return result;
+  };
+
+  const handleManualUpload = async () => {
+    if (!manualGuru) {
+      alert('Pilih guru / pegawai terlebih dahulu.');
+      return;
+    }
+
+    if (!manualDate) {
+      alert('Pilih tanggal absensi.');
+      return;
+    }
+
+    if (!manualPhotoMasuk && !manualPhotoPulang) {
+      alert('Pilih minimal Foto Masuk atau Foto Pulang.');
+      return;
+    }
+
+    const replacingMasuk =
+      Boolean(manualPhotoMasuk) &&
+      Boolean(manualExistingRecord?.foto_masuk_file_id);
+
+    const replacingPulang =
+      Boolean(manualPhotoPulang) &&
+      Boolean(manualExistingRecord?.foto_pulang_file_id);
+
+    if (replacingMasuk || replacingPulang) {
+      const parts = [
+        replacingMasuk ? 'Foto Masuk' : '',
+        replacingPulang ? 'Foto Pulang' : ''
+      ].filter(Boolean);
+
+      const confirmed = window.confirm(
+        `${parts.join(' dan ')} pada tanggal ini sudah ada.\n\n` +
+        'Foto yang dipilih akan menggantikan foto lama. Lanjutkan?'
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setManualSaving(true);
+    showLoader('Menyiapkan upload manual...');
+
+    const berhasil: string[] = [];
+
+    try {
+      /*
+       * Sengaja dikirim satu per satu.
+       * Dua foto tidak digabung dalam satu request supaya payload Vercel aman.
+       */
+      if (manualPhotoMasuk) {
+        showLoader('Mengunggah Foto Masuk...');
+
+        await sendManualPhoto(
+          'MASUK',
+          manualPhotoMasuk,
+          manualJamMasuk
+        );
+
+        berhasil.push('Foto Masuk');
+      }
+
+      if (manualPhotoPulang) {
+        showLoader('Mengunggah Foto Pulang...');
+
+        await sendManualPhoto(
+          'PULANG',
+          manualPhotoPulang,
+          manualJamPulang
+        );
+
+        berhasil.push('Foto Pulang');
+      }
+
+      showLoader('Memperbarui laporan...');
+      await onRefresh();
+
+      const [year, month] = manualDate.split('-');
+
+      if (year && month) {
+        setSelectedYear(year);
+        setSelectedMonth(month);
+      }
+
+      setSelectedGuru(manualGuru);
+
+      setManualUploadOpen(false);
+      resetManualUploadForm();
+
+      alert(
+        `Upload manual berhasil.\n\n${berhasil.join(' + ')} sudah disimpan.`
+      );
+
+    } catch (error) {
+      /*
+       * Jika Foto Masuk sudah berhasil tetapi Foto Pulang gagal,
+       * data pertama tetap aman. Admin cukup ulangi bagian yang gagal.
+       */
+      await onRefresh();
+
+      alert(
+        `${
+          berhasil.length > 0
+            ? `${berhasil.join(' + ')} sudah berhasil disimpan.\n\n`
+            : ''
+        }${
+          error instanceof Error
+            ? error.message
+            : 'Upload manual gagal.'
+        }`
+      );
+
+    } finally {
+      setManualSaving(false);
+      hideLoader();
+    }
+  };
 
   const handleDeleteAttendance = async (
     record: AttendanceRecord
@@ -1092,6 +1449,218 @@ export default function AdminPanel({
       `}</style>
 
       <div className="mx-auto max-w-[1600px] space-y-5">
+        {manualUploadOpen && (
+          <div className="screen-only fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
+            <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
+                <div>
+                  <h3 className="font-display text-xl font-black text-slate-900">
+                    Upload Absensi Manual
+                  </h3>
+                  <p className="mt-1 text-xs font-semibold text-slate-400">
+                    Untuk guru / pegawai yang lupa mengunggah foto absensi.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeManualUpload}
+                  disabled={manualSaving}
+                  className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-5 p-5 sm:p-6">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Guru / Pegawai
+                    </label>
+
+                    <select
+                      value={manualGuru}
+                      onChange={(e) => setManualGuru(e.target.value)}
+                      disabled={manualSaving}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 font-semibold text-slate-700 outline-none focus:border-amber-500 focus:bg-white"
+                    >
+                      <option value="">-- Pilih Guru / Pegawai --</option>
+                      {staffList.map((staff) => (
+                        <option key={staff.id} value={staff.id}>
+                          {staff.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Tanggal
+                    </label>
+
+                    <input
+                      type="date"
+                      value={manualDate}
+                      onChange={(e) => setManualDate(e.target.value)}
+                      disabled={manualSaving}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 font-semibold text-slate-700 outline-none focus:border-amber-500 focus:bg-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Keterangan
+                    </label>
+
+                    <input
+                      type="text"
+                      value={manualNote}
+                      onChange={(e) => setManualNote(e.target.value)}
+                      disabled={manualSaving}
+                      placeholder="Opsional"
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 font-semibold text-slate-700 outline-none placeholder:text-slate-400 focus:border-amber-500 focus:bg-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Jam Masuk
+                    </label>
+
+                    <input
+                      type="time"
+                      value={manualJamMasuk}
+                      onChange={(e) => setManualJamMasuk(e.target.value)}
+                      disabled={manualSaving}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 font-semibold text-slate-700 outline-none focus:border-emerald-500 focus:bg-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Jam Pulang
+                    </label>
+
+                    <input
+                      type="time"
+                      value={manualJamPulang}
+                      onChange={(e) => setManualJamPulang(e.target.value)}
+                      disabled={manualSaving}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 font-semibold text-slate-700 outline-none focus:border-orange-500 focus:bg-white"
+                    />
+                  </div>
+                </div>
+
+                {manualExistingRecord && (
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-xs font-semibold text-blue-800">
+                    <div className="font-black">Data tanggal ini sudah ada.</div>
+                    <div className="mt-1 leading-5">
+                      Jam: {getJam(manualExistingRecord).masuk} - {getJam(manualExistingRecord).pulang}
+                      {' • '}
+                      Foto Masuk: {manualExistingRecord.foto_masuk_file_id ? 'Ada' : 'Belum'}
+                      {' • '}
+                      Foto Pulang: {manualExistingRecord.foto_pulang_file_id ? 'Ada' : 'Belum'}
+                    </div>
+                    <div className="mt-1 font-medium text-blue-600">
+                      Jika Anda memilih foto yang sudah ada, foto lama akan diganti. Jam yang dikosongkan tidak akan mengubah jam lama.
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <label className="cursor-pointer rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/50 p-5 transition-colors hover:border-emerald-400 hover:bg-emerald-50">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={manualSaving}
+                      onChange={(e) =>
+                        setManualPhotoMasuk(e.target.files?.[0] || null)
+                      }
+                    />
+
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white">
+                        <UploadCloud className="h-5 w-5" />
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="text-xs font-black uppercase tracking-wide text-emerald-700">
+                          Foto Masuk
+                        </div>
+                        <div className="mt-1 truncate text-xs font-semibold text-slate-500">
+                          {manualPhotoMasuk
+                            ? `${manualPhotoMasuk.name} • ${formatUploadFileSize(manualPhotoMasuk.size)}`
+                            : 'Pilih foto dari perangkat'}
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+
+                  <label className="cursor-pointer rounded-2xl border-2 border-dashed border-orange-200 bg-orange-50/50 p-5 transition-colors hover:border-orange-400 hover:bg-orange-50">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={manualSaving}
+                      onChange={(e) =>
+                        setManualPhotoPulang(e.target.files?.[0] || null)
+                      }
+                    />
+
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-600 text-white">
+                        <UploadCloud className="h-5 w-5" />
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="text-xs font-black uppercase tracking-wide text-orange-700">
+                          Foto Pulang
+                        </div>
+                        <div className="mt-1 truncate text-xs font-semibold text-slate-500">
+                          {manualPhotoPulang
+                            ? `${manualPhotoPulang.name} • ${formatUploadFileSize(manualPhotoPulang.size)}`
+                            : 'Pilih foto dari perangkat'}
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="rounded-2xl bg-slate-50 p-4 text-[11px] font-semibold leading-5 text-slate-500">
+                  Foto Masuk dan Foto Pulang tidak wajib dipilih bersamaan. Anda bisa mengisi salah satu saja. Jam juga opsional; jika data tanggal tersebut sudah ada dan jam dikosongkan, jam lama tetap dipertahankan. Foto otomatis dioptimalkan sebelum dikirim.
+                </div>
+              </div>
+
+              <div className="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-slate-200 bg-white px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+                <button
+                  type="button"
+                  onClick={closeManualUpload}
+                  disabled={manualSaving}
+                  className="cursor-pointer rounded-xl bg-slate-100 px-5 py-3 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Batal
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleManualUpload}
+                  disabled={
+                    manualSaving ||
+                    !manualGuru ||
+                    !manualDate ||
+                    (!manualPhotoMasuk && !manualPhotoPulang)
+                  }
+                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-amber-500 px-6 py-3 text-xs font-black text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <UploadCloud className="h-4 w-4" />
+                  {manualSaving ? 'Menyimpan...' : 'Simpan Upload Manual'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* HEADER ADMIN */}
         <header className="no-print screen-only flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
@@ -1214,6 +1783,14 @@ export default function AdminPanel({
             >
               <RefreshCw className="h-4 w-4" />
               Perbarui Data
+            </button>
+
+            <button
+              onClick={() => setManualUploadOpen(true)}
+              className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 py-3 font-sans text-xs font-bold text-white shadow-lg shadow-amber-500/10 transition-all hover:bg-amber-600"
+            >
+              <UploadCloud className="h-4 w-4" />
+              Upload Manual
             </button>
 
             <button
