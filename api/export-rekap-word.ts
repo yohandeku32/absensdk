@@ -83,6 +83,13 @@ const LOGO_KABUPATEN_URL =
 const LOGO_TUT_WURI_URL =
   'https://absenkuaputu.my.id/logo-tut-wuri.png';
 
+
+const KEPALA_SEKOLAH_NAMA =
+  'Wilhelmina Kasih, S.Ag., S.Pd., Gr';
+
+const KEPALA_SEKOLAH_IDENTITAS =
+  'NIK. 111321452';
+
 /*
  * Lebar tabel dibuat agar muat A4 Landscape.
  */
@@ -1398,6 +1405,151 @@ export default {
           ]
         });
 
+
+      const signatureTable =
+        new Table({
+          width: {
+            size: TABLE_WIDTH,
+            type: WidthType.DXA
+          },
+
+          layout:
+            TableLayoutType.FIXED,
+
+          columnWidths: [
+            Math.floor(TABLE_WIDTH * 0.58),
+            TABLE_WIDTH - Math.floor(TABLE_WIDTH * 0.58)
+          ],
+
+          borders: {
+            top: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+            bottom: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+            left: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+            right: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+            insideHorizontal: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+            insideVertical: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' }
+          },
+
+          rows: [
+            new TableRow({
+              cantSplit: true,
+
+              children: [
+                new TableCell({
+                  width: {
+                    size: Math.floor(TABLE_WIDTH * 0.58),
+                    type: WidthType.DXA
+                  },
+
+                  borders: {
+                    top: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+                    bottom: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+                    left: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+                    right: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' }
+                  },
+
+                  children: [
+                    new Paragraph({
+                      children: []
+                    })
+                  ]
+                }),
+
+                new TableCell({
+                  width: {
+                    size: TABLE_WIDTH - Math.floor(TABLE_WIDTH * 0.58),
+                    type: WidthType.DXA
+                  },
+
+                  verticalAlign:
+                    VerticalAlign.TOP,
+
+                  margins: {
+                    top: 180,
+                    bottom: 20,
+                    left: 40,
+                    right: 40
+                  },
+
+                  borders: {
+                    top: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+                    bottom: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+                    left: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+                    right: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' }
+                  },
+
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      spacing: { after: 0 },
+                      children: [
+                        new TextRun({
+                          text: 'Mengetahui,',
+                          size: 16,
+                          font: 'Arial'
+                        })
+                      ]
+                    }),
+
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      spacing: { after: 0 },
+                      children: [
+                        new TextRun({
+                          text: 'Kepala Sekolah',
+                          size: 16,
+                          font: 'Arial'
+                        })
+                      ]
+                    }),
+
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      spacing: {
+                        before: 0,
+                        after: 0
+                      },
+                      children: [
+                        new TextRun({
+                          text: '\n\n\n',
+                          size: 18,
+                          font: 'Arial'
+                        })
+                      ]
+                    }),
+
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      spacing: { after: 0 },
+                      children: [
+                        new TextRun({
+                          text: KEPALA_SEKOLAH_NAMA,
+                          bold: true,
+                          underline: {},
+                          size: 16,
+                          font: 'Arial'
+                        })
+                      ]
+                    }),
+
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      spacing: { after: 0 },
+                      children: [
+                        new TextRun({
+                          text: KEPALA_SEKOLAH_IDENTITAS,
+                          size: 15,
+                          font: 'Arial'
+                        })
+                      ]
+                    })
+                  ]
+                })
+              ]
+            })
+          ]
+        });
+
       const doc =
         new Document({
           creator:
@@ -1450,7 +1602,8 @@ export default {
                 title,
                 period,
                 reportTable,
-                note
+                note,
+                signatureTable
               ]
             }
           ]
