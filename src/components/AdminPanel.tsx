@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { User, AttendanceRecord } from '../types';
 import { MASTER_USERS } from '../constants';
 import {
@@ -198,30 +198,84 @@ function getJam(record: AttendanceRecord) {
   return { masuk: parts[0] || '-', pulang: '-' };
 }
 
-function driveThumbnail(fileId?: string | null) {
-  if (!fileId) return '';
-  return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileId)}&sz=w700`;
-}
+const PHOTO_BATCH_API_URL =
+  'https://absensdk.vercel.app/api/photos';
 
 function driveViewUrl(fileId?: string | null) {
   if (!fileId) return '#';
   return `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/view`;
 }
 
+interface PhotoApiItem {
+  status: 'success' | 'error';
+  file_id: string;
+  mime_type?: string;
+  base64?: string;
+  message?: string;
+}
+
+async function fetchPhotoBatch(fileIds: string[]) {
+  const response = await fetch(PHOTO_BATCH_API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      file_ids: fileIds
+    })
+  });
+
+  const result = await response.json();
+
+  if (!response.ok || result.status !== 'success') {
+    throw new Error(
+      result.message ||
+      'Foto gagal diambil dari Google Drive.'
+    );
+  }
+
+  return Array.isArray(result.photos)
+    ? (result.photos as PhotoApiItem[])
+    : [];
+}
+
 function AttendancePhoto({
   fileId,
-  alt
+  alt,
+  src,
+  failed,
+  loading
 }: {
   fileId?: string | null;
   alt: string;
+  src?: string;
+  failed?: boolean;
+  loading?: boolean;
 }) {
-  const [failed, setFailed] = useState(false);
-
   if (!fileId) {
     return (
       <div className="photo-placeholder">
         <span>Tidak ada foto</span>
       </div>
+    );
+  }
+
+  if (src) {
+    return (
+      <a
+        href={driveViewUrl(fileId)}
+        target="_blank"
+        rel="noreferrer"
+        className="block"
+        title="Buka foto di Google Drive"
+      >
+        <img
+          src={src}
+          alt={alt}
+          loading="eager"
+          className="attendance-photo"
+        />
+      </a>
     );
   }
 
@@ -239,21 +293,11 @@ function AttendancePhoto({
   }
 
   return (
-    <a
-      href={driveViewUrl(fileId)}
-      target="_blank"
-      rel="noreferrer"
-      className="block"
-      title="Buka foto di Google Drive"
-    >
-      <img
-        src={driveThumbnail(fileId)}
-        alt={alt}
-        loading="eager"
-        className="attendance-photo"
-        onError={() => setFailed(true)}
-      />
-    </a>
+    <div className="photo-placeholder">
+      <span>
+        {loading ? 'Memuat foto...' : 'Menyiapkan foto...'}
+      </span>
+    </div>
   );
 }
 
@@ -274,6 +318,9 @@ export default function AdminPanel({
   const [selectedYear, setSelectedYear] = useState(String(currentYear));
   const [searchQuery, setSearchQuery] = useState('');
   const [deletingKey, setDeletingKey] = useState('');
+  const [photoSources, setPhotoSources] = useState<Record<string, string>>({});
+  const [photoFailures, setPhotoFailures] = useState<Record<string, boolean>>({});
+  const [photosLoading, setPhotosLoading] = useState(false);
 
   const staffList = useMemo(
     () => MASTER_USERS.filter((u) => u.role !== 'admin'),
@@ -326,6 +373,114 @@ export default function AdminPanel({
         return String(a.date).localeCompare(String(b.date));
       });
   }, [database, searchQuery, selectedGuru, selectedMonth, selectedYear]);
+
+  const photoFileIds = useMemo(() => {
+    return Array.from(
+      new Set(
+        filteredRecords
+          .flatMap((record) => [
+            record.foto_masuk_file_id,
+            record.foto_pulang_file_id
+          ])
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+  }, [filteredRecords]);
+
+  const photoRequestKey = photoFileIds.join('|');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPhotos = async () => {
+      if (photoFileIds.length === 0) {
+        setPhotoSources({});
+        setPhotoFailures({});
+        setPhotosLoading(false);
+        return;
+      }
+
+      setPhotosLoading(true);
+      setPhotoSources({});
+      setPhotoFailures({});
+
+      const batches: string[][] = [];
+
+      for (let i = 0; i < photoFileIds.length; i += 20) {
+        batches.push(photoFileIds.slice(i, i + 20));
+      }
+
+      const loaded: Record<string, string> = {};
+      const failed: Record<string, boolean> = {};
+
+      try {
+        /*
+         * Maksimal 3 batch berjalan bersamaan.
+         * Ini jauh lebih stabil daripada browser meminta semua thumbnail
+         * Google Drive sekaligus satu per satu.
+         */
+        for (let i = 0; i < batches.length; i += 3) {
+          const wave = batches.slice(i, i + 3);
+
+          const results = await Promise.allSettled(
+            wave.map((batch) => fetchPhotoBatch(batch))
+          );
+
+          results.forEach((result, waveIndex) => {
+            const batch = wave[waveIndex];
+
+            if (result.status === 'rejected') {
+              batch.forEach((fileId) => {
+                failed[fileId] = true;
+              });
+              return;
+            }
+
+            const returnedIds = new Set<string>();
+
+            result.value.forEach((photo) => {
+              returnedIds.add(photo.file_id);
+
+              if (
+                photo.status === 'success' &&
+                photo.base64 &&
+                photo.mime_type
+              ) {
+                loaded[photo.file_id] =
+                  `data:${photo.mime_type};base64,${photo.base64}`;
+              } else {
+                failed[photo.file_id] = true;
+              }
+            });
+
+            batch.forEach((fileId) => {
+              if (!returnedIds.has(fileId)) {
+                failed[fileId] = true;
+              }
+            });
+          });
+
+          if (!cancelled) {
+            setPhotoSources({ ...loaded });
+            setPhotoFailures({ ...failed });
+          }
+        }
+      } finally {
+        if (!cancelled) {
+          setPhotosLoading(false);
+        }
+      }
+    };
+
+    void loadPhotos();
+
+    return () => {
+      cancelled = true;
+    };
+
+    // photoRequestKey mewakili seluruh file ID pada filter aktif.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photoRequestKey]);
 
   const groupedRecords = useMemo<GuruGroup[]>(() => {
     const groups = new Map<string, GuruGroup>();
@@ -1156,11 +1311,11 @@ export default function AdminPanel({
 
             <button
               onClick={handlePrint}
-              disabled={filteredRecords.length === 0}
+              disabled={filteredRecords.length === 0 || photosLoading}
               className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-sans text-xs font-bold text-white shadow-lg shadow-blue-600/10 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Printer className="h-4 w-4" />
-              Cetak Laporan
+              {photosLoading ? 'Memuat Foto...' : 'Cetak Laporan'}
             </button>
           </div>
         </div>
@@ -1359,6 +1514,17 @@ export default function AdminPanel({
                             <AttendancePhoto
                               fileId={record.foto_masuk_file_id}
                               alt={`Foto masuk ${record.name} ${record.date}`}
+                              src={
+                                record.foto_masuk_file_id
+                                  ? photoSources[record.foto_masuk_file_id]
+                                  : undefined
+                              }
+                              failed={
+                                record.foto_masuk_file_id
+                                  ? photoFailures[record.foto_masuk_file_id]
+                                  : false
+                              }
+                              loading={photosLoading}
                             />
                           </td>
 
@@ -1366,6 +1532,17 @@ export default function AdminPanel({
                             <AttendancePhoto
                               fileId={record.foto_pulang_file_id}
                               alt={`Foto pulang ${record.name} ${record.date}`}
+                              src={
+                                record.foto_pulang_file_id
+                                  ? photoSources[record.foto_pulang_file_id]
+                                  : undefined
+                              }
+                              failed={
+                                record.foto_pulang_file_id
+                                  ? photoFailures[record.foto_pulang_file_id]
+                                  : false
+                              }
+                              loading={photosLoading}
                             />
                           </td>
 
