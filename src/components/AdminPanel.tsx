@@ -1595,6 +1595,12 @@ export default function AdminPanel({
           background: #f1f5f9;
         }
 
+        @media (max-width: 1023px) {
+          .admin-report-page {
+            padding-top: 12px;
+          }
+        }
+
         .photo-placeholder {
           width: 132px;
           height: 170px;
@@ -2023,64 +2029,179 @@ export default function AdminPanel({
             </div>
           </div>
         )}
-        {/* HEADER ADMIN */}
-        <header className="no-print screen-only flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-amber-500/15 bg-amber-500/10 text-amber-600">
-              <CalendarCheck className="h-6 w-6" />
+        <div className="grid items-start gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
+          {/* SIDEBAR ADMIN */}
+          <aside className="no-print screen-only overflow-hidden rounded-3xl bg-slate-950 text-white shadow-xl shadow-slate-900/10 lg:sticky lg:top-5">
+            <div className="border-b border-white/10 p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/10">
+                  <CalendarCheck className="h-6 w-6" />
+                </div>
+
+                <div className="min-w-0">
+                  <div className="truncate font-display text-base font-black">
+                    Administrator
+                  </div>
+                  <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+                    Absensi Guru
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl bg-white/[0.06] px-4 py-3">
+                <div className="truncate text-xs font-bold text-white">
+                  {user.name}
+                </div>
+                <div className="mt-1 text-[10px] font-semibold text-slate-400">
+                  SDK St. Yoseph Kuaputu
+                </div>
+              </div>
             </div>
-            <div>
-              <h2 className="font-display text-xl font-black text-slate-900 sm:text-2xl">
-                Panel Administrator
-              </h2>
-              <p className="mt-0.5 font-sans text-xs font-semibold uppercase tracking-widest text-slate-400">
-                Rekapitulasi Absensi Guru &amp; Pegawai
-              </p>
-              <p className="mt-1 font-sans text-[11px] font-semibold text-slate-400">
-                Login sebagai {user.name}
-              </p>
+
+            <div className="p-3">
+              <div className="px-3 pb-2 pt-1 text-[9px] font-black uppercase tracking-[0.22em] text-slate-500">
+                Menu Utama
+              </div>
+
+              <nav className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => setActiveView('laporan')}
+                  className={`flex w-full cursor-pointer items-center gap-3 rounded-2xl px-3.5 py-3.5 text-left transition-all ${
+                    activeView === 'laporan'
+                      ? 'bg-white text-slate-950 shadow-sm'
+                      : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'
+                  }`}
+                >
+                  <div
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                      activeView === 'laporan'
+                        ? 'bg-slate-950 text-white'
+                        : 'bg-white/[0.07] text-slate-300'
+                    }`}
+                  >
+                    <FileText className="h-4 w-4" />
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="text-xs font-black">
+                      Laporan Absensi
+                    </div>
+                    <div className="mt-0.5 text-[10px] font-semibold text-slate-500">
+                      Data harian &amp; foto
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveView('rekap')}
+                  className={`flex w-full cursor-pointer items-center gap-3 rounded-2xl px-3.5 py-3.5 text-left transition-all ${
+                    activeView === 'rekap'
+                      ? 'bg-violet-500 text-white shadow-lg shadow-violet-500/15'
+                      : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'
+                  }`}
+                >
+                  <div
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                      activeView === 'rekap'
+                        ? 'bg-white/15 text-white'
+                        : 'bg-white/[0.07] text-slate-300'
+                    }`}
+                  >
+                    <CalendarCheck className="h-4 w-4" />
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="text-xs font-black">
+                      Rekap Bulanan
+                    </div>
+                    <div
+                      className={`mt-0.5 text-[10px] font-semibold ${
+                        activeView === 'rekap'
+                          ? 'text-violet-100'
+                          : 'text-slate-500'
+                      }`}
+                    >
+                      Rekap &amp; tanda tangan
+                    </div>
+                  </div>
+                </button>
+              </nav>
+
+              <div className="my-4 border-t border-white/10" />
+
+              <div className="px-3 pb-2 text-[9px] font-black uppercase tracking-[0.22em] text-slate-500">
+                Aksi Cepat
+              </div>
+
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => setManualUploadOpen(true)}
+                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-3.5 py-3 text-left text-slate-300 transition-all hover:bg-amber-400 hover:text-slate-950"
+                >
+                  <UploadCloud className="h-4 w-4" />
+                  <span className="text-xs font-bold">
+                    Upload Manual
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleRefresh}
+                  className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-3.5 py-3 text-left text-slate-300 transition-all hover:bg-white/[0.07] hover:text-white"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  <span className="text-xs font-bold">
+                    Perbarui Data
+                  </span>
+                </button>
+              </div>
             </div>
-          </div>
 
-          <button
-            onClick={onLogout}
-            className="flex cursor-pointer items-center justify-center gap-2 self-start rounded-xl bg-red-50 px-5 py-3 font-sans text-xs font-bold text-red-600 transition-all hover:bg-red-100 sm:self-auto"
-          >
-            <LogOut className="h-4 w-4" />
-            Keluar Sesi
-          </button>
-        </header>
+            <div className="border-t border-white/10 p-3">
+              <button
+                type="button"
+                onClick={onLogout}
+                className="flex w-full cursor-pointer items-center gap-3 rounded-2xl px-3.5 py-3 text-left text-red-300 transition-all hover:bg-red-500/15 hover:text-red-200"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="text-xs font-bold">
+                  Keluar Sesi
+                </span>
+              </button>
+            </div>
+          </aside>
 
-        {/* TAB NAVIGATION */}
-        <div className="no-print screen-only rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
-          <div className="grid grid-cols-2 gap-1.5">
-            <button
-              type="button"
-              onClick={() => setActiveView('laporan')}
-              className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-3 font-sans text-xs font-black transition-all ${
-                activeView === 'laporan'
-                  ? 'bg-slate-900 text-white shadow-sm'
-                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'
-              }`}
-            >
-              <FileText className="h-4 w-4" />
-              Laporan Absensi
-            </button>
+          {/* KONTEN UTAMA */}
+          <main className="min-w-0 space-y-5">
+            <header className="no-print screen-only flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+                  Panel Administrator
+                </div>
 
-            <button
-              type="button"
-              onClick={() => setActiveView('rekap')}
-              className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-3 font-sans text-xs font-black transition-all ${
-                activeView === 'rekap'
-                  ? 'bg-violet-600 text-white shadow-sm'
-                  : 'text-slate-500 hover:bg-violet-50 hover:text-violet-700'
-              }`}
-            >
-              <CalendarCheck className="h-4 w-4" />
-              Rekap Bulanan
-            </button>
-          </div>
-        </div>
+                <h2 className="mt-1 font-display text-xl font-black text-slate-900 sm:text-2xl">
+                  {activeView === 'laporan'
+                    ? 'Laporan Absensi'
+                    : 'Rekap Bulanan'}
+                </h2>
+
+                <p className="mt-1 max-w-2xl font-sans text-xs font-semibold text-slate-400">
+                  {activeView === 'laporan'
+                    ? 'Kelola data kehadiran, foto masuk/pulang, dan laporan absensi.'
+                    : 'Rekapitulasi kehadiran bulanan guru dan pegawai untuk laporan resmi.'}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 self-start rounded-2xl bg-slate-50 px-4 py-3 sm:self-auto">
+                <CalendarCheck className="h-4 w-4 text-violet-600" />
+                <div className="font-sans text-xs font-black text-slate-700">
+                  {selectedMonthLabel} {selectedYear}
+                </div>
+              </div>
+            </header>
 
         {/* FILTER */}
         <div className="no-print screen-only grid grid-cols-1 gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-2 xl:grid-cols-4">
@@ -2163,65 +2284,51 @@ export default function AdminPanel({
         </div>
 
         {/* ACTION */}
-        <div className="no-print screen-only flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="no-print screen-only flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <p className="font-sans text-xs font-semibold text-slate-500">
             {activeView === 'laporan' ? (
               <>
-                <span className="font-black text-slate-800">{groupedRecords.length}</span> guru/pegawai •{' '}
-                <span className="font-black text-slate-800">{filteredRecords.length}</span> baris absensi
+                <span className="font-black text-slate-900">{groupedRecords.length}</span> guru/pegawai
+                <span className="mx-2 text-slate-300">•</span>
+                <span className="font-black text-slate-900">{filteredRecords.length}</span> baris absensi
               </>
             ) : (
               <>
-                <span className="font-black text-slate-800">{monthlyRecap.length}</span> guru/pegawai • Rekap{' '}
-                <span className="font-black text-slate-800">{selectedMonthLabel} {selectedYear}</span>
+                <span className="font-black text-slate-900">{monthlyRecap.length}</span> guru/pegawai
+                <span className="mx-2 text-slate-300">•</span>
+                Rekap <span className="font-black text-slate-900">{selectedMonthLabel} {selectedYear}</span>
               </>
             )}
           </p>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-            <button
-              onClick={handleRefresh}
-              className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-800 px-5 py-3 font-sans text-xs font-bold text-white transition-all hover:bg-slate-900"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Perbarui Data
-            </button>
-
-            <button
-              onClick={() => setManualUploadOpen(true)}
-              className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-amber-500 px-5 py-3 font-sans text-xs font-bold text-white shadow-lg shadow-amber-500/10 transition-all hover:bg-amber-600"
-            >
-              <UploadCloud className="h-4 w-4" />
-              Upload Manual
-            </button>
-
             {activeView === 'laporan' ? (
               <>
                 <button
                   onClick={handleDownloadExcel}
                   disabled={filteredRecords.length === 0}
-                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-sans text-xs font-bold text-white shadow-lg shadow-emerald-600/10 transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 font-sans text-[11px] font-bold text-white transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Download className="h-4 w-4" />
-                  Download Excel
+                  Excel
                 </button>
 
                 <button
                   onClick={handleDownloadWord}
                   disabled={filteredRecords.length === 0}
-                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 font-sans text-xs font-bold text-white shadow-lg shadow-indigo-600/10 transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 font-sans text-[11px] font-bold text-white transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <FileText className="h-4 w-4" />
-                  Download Word
+                  Word
                 </button>
 
                 <button
                   onClick={handlePrint}
                   disabled={filteredRecords.length === 0}
-                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-sans text-xs font-bold text-white shadow-lg shadow-blue-600/10 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 font-sans text-[11px] font-bold text-white transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Printer className="h-4 w-4" />
-                  Cetak Laporan
+                  Cetak
                 </button>
               </>
             ) : (
@@ -2229,16 +2336,16 @@ export default function AdminPanel({
                 <button
                   onClick={handleDownloadMonthlyRecapWord}
                   disabled={monthlyRecap.length === 0}
-                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 font-sans text-xs font-bold text-white transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 font-sans text-[11px] font-bold text-white transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <FileText className="h-4 w-4" />
-                  Download Word Rekap
+                  Word Rekap
                 </button>
 
                 <button
                   onClick={handlePrintMonthlyRecap}
                   disabled={monthlyRecap.length === 0}
-                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-sans text-xs font-bold text-white transition-all hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 font-sans text-[11px] font-bold text-white transition-all hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <Printer className="h-4 w-4" />
                   Cetak Rekap
@@ -2541,6 +2648,8 @@ export default function AdminPanel({
               </tbody>
             </table>
           </div>
+        </div>
+          </main>
         </div>
       </div>
     </div>
