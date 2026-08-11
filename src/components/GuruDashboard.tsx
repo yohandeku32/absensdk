@@ -1,19 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User, AttendanceRecord, AbsenMode } from '../types';
-import { LogOut, User as UserIcon, Calendar, Clock, CheckCircle2, ChevronRight, FileText, AlertTriangle, Info, X } from 'lucide-react';
-
-type GuruDialogMode = 'absen' | 'logout' | null;
-
-interface GuruDialogState {
-  open: boolean;
-  mode: GuruDialogMode;
-  absenMode?: AbsenMode;
-}
-
-const INITIAL_GURU_DIALOG: GuruDialogState = {
-  open: false,
-  mode: null
-};
+import { LogOut, User as UserIcon, Calendar, Clock, CheckCircle2, ChevronRight, FileText } from 'lucide-react';
 
 interface GuruDashboardProps {
   user: User;
@@ -30,7 +17,6 @@ export default function GuruDashboard({
 }: GuruDashboardProps) {
   const [timeStr, setTimeStr] = useState('');
   const [dateStr, setDateStr] = useState('');
-  const [dialog, setDialog] = useState<GuruDialogState>(INITIAL_GURU_DIALOG);
 
   // Running local clock
   useEffect(() => {
@@ -97,123 +83,8 @@ export default function GuruDashboard({
   const jamMasuk = dataMasuk ? getDisplayTime(dataMasuk, 'masuk') : null;
   const jamPulang = dataPulang ? getDisplayTime(dataPulang, 'pulang') : null;
 
-  const openAbsenDialog = (mode: AbsenMode) => {
-    setDialog({
-      open: true,
-      mode: 'absen',
-      absenMode: mode
-    });
-  };
-
-  const openLogoutDialog = () => {
-    setDialog({
-      open: true,
-      mode: 'logout'
-    });
-  };
-
-  const closeDialog = () => {
-    setDialog(INITIAL_GURU_DIALOG);
-  };
-
-  const handleDialogConfirm = () => {
-    if (dialog.mode === 'absen' && dialog.absenMode) {
-      const mode = dialog.absenMode;
-      closeDialog();
-      onTriggerAbsen(mode);
-      return;
-    }
-
-    if (dialog.mode === 'logout') {
-      closeDialog();
-      onLogout();
-    }
-  };
-
   return (
     <div className="min-h-screen py-6 px-4 bg-slate-50">
-      {dialog.open && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl">
-            <div className="p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-4">
-                  <div
-                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
-                      dialog.mode === 'logout'
-                        ? 'bg-red-50 text-red-600'
-                        : dialog.absenMode === 'PULANG'
-                          ? 'bg-orange-50 text-orange-600'
-                          : 'bg-emerald-50 text-emerald-600'
-                    }`}
-                  >
-                    {dialog.mode === 'logout' ? (
-                      <AlertTriangle className="h-6 w-6" />
-                    ) : (
-                      <Info className="h-6 w-6" />
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <h3 className="font-display text-lg font-black text-slate-900">
-                      {dialog.mode === 'logout'
-                        ? 'Keluar dari Akun?'
-                        : dialog.absenMode === 'PULANG'
-                          ? 'Mulai Absen Pulang?'
-                          : 'Mulai Absen Masuk?'}
-                    </h3>
-
-                    <p className="mt-2 font-sans text-sm font-medium leading-6 text-slate-500">
-                      {dialog.mode === 'logout'
-                        ? 'Anda akan keluar dari Dashboard Guru dan kembali ke halaman login.'
-                        : dialog.absenMode === 'PULANG'
-                          ? 'Lanjutkan untuk memilih foto bukti pulang dan mengirim absensi.'
-                          : 'Lanjutkan untuk memilih foto bukti masuk dan mengirim absensi.'}
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={closeDialog}
-                  className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-slate-100 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-600"
-                  aria-label="Tutup"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:flex-row sm:justify-end">
-              <button
-                type="button"
-                onClick={closeDialog}
-                className="cursor-pointer rounded-xl bg-white px-5 py-3 text-xs font-bold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-slate-100"
-              >
-                Batal
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDialogConfirm}
-                className={`cursor-pointer rounded-xl px-5 py-3 text-xs font-black text-white transition-colors ${
-                  dialog.mode === 'logout'
-                    ? 'bg-red-600 hover:bg-red-700'
-                    : dialog.absenMode === 'PULANG'
-                      ? 'bg-orange-600 hover:bg-orange-700'
-                      : 'bg-emerald-600 hover:bg-emerald-700'
-                }`}
-              >
-                {dialog.mode === 'logout'
-                  ? 'Ya, Keluar'
-                  : dialog.absenMode === 'PULANG'
-                    ? 'Lanjut Absen Pulang'
-                    : 'Lanjut Absen Masuk'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       <div className="max-w-md mx-auto bg-white min-h-[90vh] rounded-[2.5rem] shadow-2xl border border-slate-100 flex flex-col overflow-hidden relative">
         
         {/* Dashboard Header */}
@@ -232,7 +103,7 @@ export default function GuruDashboard({
             </div>
           </div>
           <button
-            onClick={openLogoutDialog}
+            onClick={onLogout}
             className="p-3 rounded-2xl bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-500 transition-all cursor-pointer"
             title="Keluar"
           >
@@ -292,7 +163,7 @@ export default function GuruDashboard({
               </div>
             ) : (
               <button
-                onClick={() => openAbsenDialog('MASUK')}
+                onClick={() => onTriggerAbsen('MASUK')}
                 className="w-full p-6 bg-gradient-to-br from-emerald-500 to-emerald-600 text-white rounded-[2rem] text-left flex justify-between items-center shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/35 hover:-translate-y-1 transition-all duration-300 active:scale-98 cursor-pointer border-none"
               >
                 <div>
@@ -322,13 +193,13 @@ export default function GuruDashboard({
               </div>
             ) : (
               <button
-                onClick={() => openAbsenDialog('PULANG')}
+                onClick={() => onTriggerAbsen('PULANG')}
                 className="w-full p-6 bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-[2rem] text-left flex justify-between items-center shadow-lg shadow-orange-500/20 hover:shadow-orange-500/35 hover:-translate-y-1 transition-all duration-300 active:scale-98 cursor-pointer border-none"
               >
                 <div>
                   <h3 className="font-display font-black text-white text-lg">Absen Pulang</h3>
                   <p className="text-orange-50 text-xs font-medium font-sans opacity-90 mt-0.5">
-                    Ketuk untuk mengambil foto &amp; kirim
+                    Bisa dikirim meski belum absen masuk
                   </p>
                 </div>
                 <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-white shadow-inner">
