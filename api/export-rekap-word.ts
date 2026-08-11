@@ -3,6 +3,7 @@ import {
   AlignmentType,
   BorderStyle,
   Document,
+  ImageRun,
   Packer,
   PageOrientation,
   Paragraph,
@@ -75,6 +76,12 @@ const MONTHS: Record<string, string> = {
 };
 
 const BATAS_TERLAMBAT = '07:15';
+
+const LOGO_KABUPATEN_URL =
+  'https://absenkuaputu.my.id/logo-kabupaten-kupang.png';
+
+const LOGO_TUT_WURI_URL =
+  'https://absenkuaputu.my.id/logo-tut-wuri.png';
 
 /*
  * Lebar tabel dibuat agar muat A4 Landscape.
@@ -349,6 +356,20 @@ function textCell(
       )
     ]
   });
+}
+
+async function fetchImageBytes(url: string) {
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(
+      `Logo KOP gagal dimuat: ${response.status}`
+    );
+  }
+
+  return new Uint8Array(
+    await response.arrayBuffer()
+  );
 }
 
 function streamBytes(bytes: Uint8Array) {
@@ -1058,6 +1079,274 @@ export default {
             CELL_MARGINS
         });
 
+      const [
+        logoKabupatenBytes,
+        logoTutWuriBytes
+      ] = await Promise.all([
+        fetchImageBytes(LOGO_KABUPATEN_URL),
+        fetchImageBytes(LOGO_TUT_WURI_URL)
+      ]);
+
+      const kopTable =
+        new Table({
+          width: {
+            size: TABLE_WIDTH,
+            type: WidthType.DXA
+          },
+
+          layout:
+            TableLayoutType.FIXED,
+
+          alignment:
+            AlignmentType.CENTER,
+
+          columnWidths: [
+            1800,
+            TABLE_WIDTH - 3600,
+            1800
+          ],
+
+          borders: {
+            top: {
+              style: BorderStyle.NIL,
+              size: 0,
+              color: 'FFFFFF'
+            },
+            left: {
+              style: BorderStyle.NIL,
+              size: 0,
+              color: 'FFFFFF'
+            },
+            right: {
+              style: BorderStyle.NIL,
+              size: 0,
+              color: 'FFFFFF'
+            },
+            insideHorizontal: {
+              style: BorderStyle.NIL,
+              size: 0,
+              color: 'FFFFFF'
+            },
+            insideVertical: {
+              style: BorderStyle.NIL,
+              size: 0,
+              color: 'FFFFFF'
+            },
+            bottom: {
+              style: BorderStyle.DOUBLE,
+              size: 12,
+              color: '000000'
+            }
+          },
+
+          rows: [
+            new TableRow({
+              cantSplit: true,
+
+              children: [
+                new TableCell({
+                  width: {
+                    size: 1800,
+                    type: WidthType.DXA
+                  },
+
+                  verticalAlign:
+                    VerticalAlign.CENTER,
+
+                  margins: {
+                    top: 40,
+                    bottom: 80,
+                    left: 40,
+                    right: 40
+                  },
+
+                  borders: {
+                    top: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+                    left: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+                    right: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+                    bottom: { style: BorderStyle.DOUBLE, size: 12, color: '000000' }
+                  },
+
+                  children: [
+                    new Paragraph({
+                      alignment:
+                        AlignmentType.CENTER,
+
+                      children: [
+                        new ImageRun({
+                          type: 'png',
+                          data: logoKabupatenBytes,
+                          transformation: {
+                            width: 78,
+                            height: 64
+                          },
+                          altText: {
+                            title: 'Logo Kabupaten Kupang',
+                            description: 'Logo Kabupaten Kupang',
+                            name: 'Logo Kabupaten Kupang'
+                          }
+                        })
+                      ]
+                    })
+                  ]
+                }),
+
+                new TableCell({
+                  width: {
+                    size:
+                      TABLE_WIDTH - 3600,
+                    type:
+                      WidthType.DXA
+                  },
+
+                  verticalAlign:
+                    VerticalAlign.CENTER,
+
+                  margins: {
+                    top: 30,
+                    bottom: 70,
+                    left: 40,
+                    right: 40
+                  },
+
+                  borders: {
+                    top: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+                    left: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+                    right: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+                    bottom: { style: BorderStyle.DOUBLE, size: 12, color: '000000' }
+                  },
+
+                  children: [
+                    new Paragraph({
+                      alignment:
+                        AlignmentType.CENTER,
+                      spacing: {
+                        after: 0
+                      },
+                      children: [
+                        new TextRun({
+                          text:
+                            'PEMERINTAH KABUPATEN KUPANG',
+                          bold: true,
+                          size: 20,
+                          font: 'Times New Roman'
+                        })
+                      ]
+                    }),
+
+                    new Paragraph({
+                      alignment:
+                        AlignmentType.CENTER,
+                      spacing: {
+                        after: 0
+                      },
+                      children: [
+                        new TextRun({
+                          text:
+                            'DINAS PENDIDIKAN KEPEMUDAAN DAN OLAHRAGA',
+                          bold: true,
+                          size: 20,
+                          font: 'Times New Roman'
+                        })
+                      ]
+                    }),
+
+                    new Paragraph({
+                      alignment:
+                        AlignmentType.CENTER,
+                      spacing: {
+                        after: 0
+                      },
+                      children: [
+                        new TextRun({
+                          text:
+                            'SDK ST. YOSEPH KUAPUTU',
+                          bold: true,
+                          size: 23,
+                          font: 'Times New Roman'
+                        })
+                      ]
+                    }),
+
+                    new Paragraph({
+                      alignment:
+                        AlignmentType.CENTER,
+                      spacing: {
+                        after: 0
+                      },
+                      children: [
+                        new TextRun({
+                          text:
+                            'Desa Oemasi, Kecamatan Nekamese, Kabupaten Kupang',
+                          italics: true,
+                          bold: true,
+                          size: 15,
+                          font: 'Times New Roman'
+                        })
+                      ]
+                    })
+                  ]
+                }),
+
+                new TableCell({
+                  width: {
+                    size: 1800,
+                    type: WidthType.DXA
+                  },
+
+                  verticalAlign:
+                    VerticalAlign.CENTER,
+
+                  margins: {
+                    top: 40,
+                    bottom: 80,
+                    left: 40,
+                    right: 40
+                  },
+
+                  borders: {
+                    top: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+                    left: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+                    right: { style: BorderStyle.NIL, size: 0, color: 'FFFFFF' },
+                    bottom: { style: BorderStyle.DOUBLE, size: 12, color: '000000' }
+                  },
+
+                  children: [
+                    new Paragraph({
+                      alignment:
+                        AlignmentType.CENTER,
+
+                      children: [
+                        new ImageRun({
+                          type: 'png',
+                          data: logoTutWuriBytes,
+                          transformation: {
+                            width: 70,
+                            height: 64
+                          },
+                          altText: {
+                            title: 'Logo Tut Wuri Handayani',
+                            description: 'Logo Tut Wuri Handayani',
+                            name: 'Logo Tut Wuri Handayani'
+                          }
+                        })
+                      ]
+                    })
+                  ]
+                })
+              ]
+            })
+          ]
+        });
+
+      const kopSpacer =
+        new Paragraph({
+          spacing: {
+            after: 40
+          },
+          children: []
+        });
+
       const title =
         new Paragraph({
           alignment:
@@ -1071,24 +1360,6 @@ export default {
                 'REKAPITULASI ABSENSI GURU DAN PEGAWAI',
               bold: true,
               size: 25,
-              font: 'Arial'
-            })
-          ]
-        });
-
-      const school =
-        new Paragraph({
-          alignment:
-            AlignmentType.CENTER,
-          spacing: {
-            after: 20
-          },
-          children: [
-            new TextRun({
-              text:
-                'SDK ST. YOSEPH KUAPUTU',
-              bold: true,
-              size: 20,
               font: 'Arial'
             })
           ]
@@ -1174,8 +1445,9 @@ export default {
               },
 
               children: [
+                kopTable,
+                kopSpacer,
                 title,
-                school,
                 period,
                 reportTable,
                 note
