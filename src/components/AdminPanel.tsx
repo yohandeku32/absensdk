@@ -242,6 +242,12 @@ function driveViewUrl(fileId?: string | null) {
 const PHOTO_FALLBACK_API_URL =
   'https://absensdk.vercel.app/api/photos';
 
+const KOP_LOGO_KABUPATEN =
+  `${import.meta.env.BASE_URL}logo-kabupaten-kupang.png`;
+
+const KOP_LOGO_TUT_WURI =
+  `${import.meta.env.BASE_URL}logo-tut-wuri.png`;
+
 function AttendancePhoto({
   fileId,
   alt
@@ -1262,6 +1268,18 @@ export default function AdminPanel({
       )
       .join('');
 
+    const kopLogoKabupatenPrint =
+      new URL(
+        KOP_LOGO_KABUPATEN,
+        window.location.href
+      ).href;
+
+    const kopLogoTutWuriPrint =
+      new URL(
+        KOP_LOGO_TUT_WURI,
+        window.location.href
+      ).href;
+
     printWindow.document.open();
 
     printWindow.document.write(`
@@ -1289,16 +1307,61 @@ export default function AdminPanel({
               print-color-adjust: exact;
             }
 
+            .kop {
+              display: grid;
+              grid-template-columns: 24mm 1fr 24mm;
+              align-items: center;
+              gap: 3mm;
+              padding: 0 3mm 2.5mm;
+              border-bottom: 3px double #000;
+              margin-bottom: 3mm;
+            }
+
+            .kop-logo {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+
+            .kop-logo img {
+              width: 20mm;
+              height: 20mm;
+              object-fit: contain;
+            }
+
+            .kop-text {
+              text-align: center;
+              line-height: 1.12;
+            }
+
+            .kop-line-1 {
+              font-size: 11pt;
+              font-weight: 700;
+            }
+
+            .kop-line-2 {
+              margin-top: 1mm;
+              font-size: 11pt;
+              font-weight: 700;
+            }
+
+            .kop-school {
+              margin-top: 1mm;
+              font-size: 12pt;
+              font-weight: 800;
+            }
+
+            .kop-address {
+              margin-top: 1mm;
+              font-size: 8.5pt;
+              font-style: italic;
+              font-weight: 600;
+            }
+
             h1 {
               margin: 0;
               text-align: center;
-              font-size: 14pt;
-            }
-
-            h2 {
-              margin: 2mm 0 0;
-              text-align: center;
-              font-size: 11pt;
+              font-size: 12pt;
             }
 
             .period {
@@ -1351,8 +1414,38 @@ export default function AdminPanel({
         </head>
 
         <body>
+          <div class="kop">
+            <div class="kop-logo">
+              <img
+                src="${kopLogoKabupatenPrint}"
+                alt="Logo Kabupaten Kupang"
+              />
+            </div>
+
+            <div class="kop-text">
+              <div class="kop-line-1">
+                PEMERINTAH KABUPATEN KUPANG
+              </div>
+              <div class="kop-line-2">
+                DINAS PENDIDIKAN KEPEMUDAAN DAN OLAHRAGA
+              </div>
+              <div class="kop-school">
+                SDK ST. YOSEPH KUAPUTU
+              </div>
+              <div class="kop-address">
+                Desa Oemasi, Kecamatan Nekamese, Kabupaten Kupang
+              </div>
+            </div>
+
+            <div class="kop-logo">
+              <img
+                src="${kopLogoTutWuriPrint}"
+                alt="Logo Tut Wuri Handayani"
+              />
+            </div>
+          </div>
+
           <h1>REKAPITULASI ABSENSI GURU DAN PEGAWAI</h1>
-          <h2>SDK ST. YOSEPH KUAPUTU</h2>
 
           <div class="period">
             BULAN ${escapeHtml(selectedMonthLabel)} ${escapeHtml(selectedYear)}
@@ -2083,6 +2176,50 @@ export default function AdminPanel({
                 Cetak Rekap
               </button>
             </div>
+          </div>
+
+          <div className="mx-4 mt-4 border-b-4 border-double border-slate-900 px-3 pb-4">
+            <div className="grid grid-cols-[88px_minmax(0,1fr)_88px] items-center gap-3 sm:grid-cols-[105px_minmax(0,1fr)_105px]">
+              <div className="flex items-center justify-center">
+                <img
+                  src={KOP_LOGO_KABUPATEN}
+                  alt="Logo Kabupaten Kupang"
+                  className="h-20 w-20 object-contain sm:h-24 sm:w-24"
+                />
+              </div>
+
+              <div className="text-center font-serif text-slate-950">
+                <div className="text-[11px] font-bold leading-tight sm:text-base">
+                  PEMERINTAH KABUPATEN KUPANG
+                </div>
+                <div className="mt-1 text-[10px] font-bold leading-tight sm:text-[15px]">
+                  DINAS PENDIDIKAN KEPEMUDAAN DAN OLAHRAGA
+                </div>
+                <div className="mt-1 text-sm font-black leading-tight sm:text-lg">
+                  SDK ST. YOSEPH KUAPUTU
+                </div>
+                <div className="mt-1 text-[9px] font-semibold italic leading-tight sm:text-xs">
+                  Desa Oemasi, Kecamatan Nekamese, Kabupaten Kupang
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center">
+                <img
+                  src={KOP_LOGO_TUT_WURI}
+                  alt="Logo Tut Wuri Handayani"
+                  className="h-20 w-20 object-contain sm:h-24 sm:w-24"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="px-4 pb-3 pt-4 text-center">
+            <h4 className="font-serif text-base font-black text-slate-950 sm:text-lg">
+              REKAPITULASI ABSENSI GURU DAN PEGAWAI
+            </h4>
+            <p className="mt-1 font-serif text-xs font-bold uppercase text-slate-700">
+              Bulan {selectedMonthLabel} {selectedYear}
+            </p>
           </div>
 
           <div className="overflow-x-auto">
