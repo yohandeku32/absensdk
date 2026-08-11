@@ -1235,6 +1235,7 @@ export default {
 
         // ==================================================
         // ABSEN PULANG
+        // TIDAK WAJIB SUDAH ABSEN MASUK
         // ==================================================
 
         if (
@@ -1243,35 +1244,15 @@ export default {
 
 
           // ----------------------------------------------
-          // WAJIB SUDAH ABSEN MASUK
-          // ----------------------------------------------
-
-          if (
-            !absenHariIni ||
-            !absenHariIni.jam_masuk
-          ) {
-
-            return json(request, 
-              {
-                status: 'error',
-                message:
-                  'Anda belum melakukan absen MASUK hari ini.',
-              },
-              409
-            );
-          }
-
-
-
-          // ----------------------------------------------
           // CEGAH PULANG DUA KALI
           // ----------------------------------------------
 
           if (
+            absenHariIni &&
             absenHariIni.jam_pulang
           ) {
 
-            return json(request, 
+            return json(request,
               {
                 status: 'error',
                 message:
@@ -1315,7 +1296,7 @@ export default {
             !hasilFoto.file_id
           ) {
 
-            return json(request, 
+            return json(request,
               {
                 status: 'error',
 
@@ -1330,47 +1311,132 @@ export default {
 
 
           // ----------------------------------------------
-          // UPDATE DATA TIDB
+          // JIKA SUDAH ADA DATA HARI INI -> UPDATE
+          // ----------------------------------------------
+
+          if (absenHariIni) {
+
+            const punyaMasuk =
+              Boolean(absenHariIni.jam_masuk);
+
+            const statusBaru =
+              punyaMasuk
+                ? 'MASUK & PULANG'
+                : 'PULANG';
+
+
+            await conn.execute(
+              `
+                UPDATE absensi
+
+                SET
+                  jam_pulang = ?,
+                  status = ?,
+                  keterangan = ?,
+                  foto_pulang_file_id = ?,
+                  updated_at = CURRENT_TIMESTAMP
+
+                WHERE
+                  id_user = ?
+                  AND tanggal = ?
+              `,
+              [
+                jam,
+                statusBaru,
+                keterangan,
+                hasilFoto.file_id,
+                idUser,
+                tanggal
+              ]
+            );
+
+
+            const jamMasuk =
+              punyaMasuk
+                ? formatJam(absenHariIni.jam_masuk)
+                : null;
+
+
+            return json(request, {
+              status:
+                'success',
+
+              message:
+                'Absensi PULANG berhasil disimpan.',
+
+              data: {
+                id_user:
+                  idUser,
+
+                name:
+                  namaGuru,
+
+                date:
+                  tanggal,
+
+                time:
+                  jamMasuk
+                    ? jamMasuk + ' - ' + jam
+                    : jam,
+
+                jam_masuk:
+                  jamMasuk,
+
+                jam_pulang:
+                  jam,
+
+                status:
+                  statusBaru,
+
+                keterangan:
+                  keterangan,
+
+                foto_masuk_file_id:
+                  absenHariIni.foto_masuk_file_id || null,
+
+                foto_pulang_file_id:
+                  hasilFoto.file_id
+              }
+            });
+          }
+
+
+
+          // ----------------------------------------------
+          // BELUM ADA ABSEN HARI INI
+          // BOLEH LANGSUNG ABSEN PULANG
           // ----------------------------------------------
 
           await conn.execute(
             `
-              UPDATE absensi
+              INSERT INTO absensi
+              (
+                id_user,
+                tanggal,
+                jam_pulang,
+                status,
+                keterangan,
+                foto_pulang_file_id
+              )
 
-              SET
-                jam_pulang = ?,
-
-                status =
-                  'MASUK & PULANG',
-
-                foto_pulang_file_id = ?,
-
-                updated_at =
-                  CURRENT_TIMESTAMP
-
-
-              WHERE
-                id_user = ?
-                AND tanggal = ?
+              VALUES
+              (
+                ?,
+                ?,
+                ?,
+                'PULANG',
+                ?,
+                ?
+              )
             `,
             [
-              jam,
-
-              hasilFoto.file_id,
-
               idUser,
-
-              tanggal
+              tanggal,
+              jam,
+              keterangan,
+              hasilFoto.file_id
             ]
           );
-
-
-
-          const jamMasuk =
-            formatJam(
-              absenHariIni.jam_masuk
-            );
-
 
 
           return json(request, {
@@ -1381,7 +1447,6 @@ export default {
               'Absensi PULANG berhasil disimpan.',
 
             data: {
-
               id_user:
                 idUser,
 
@@ -1392,25 +1457,22 @@ export default {
                 tanggal,
 
               time:
-                jamMasuk +
-                ' - ' +
                 jam,
 
               jam_masuk:
-                jamMasuk,
+                null,
 
               jam_pulang:
                 jam,
 
               status:
-                'MASUK & PULANG',
+                'PULANG',
 
               keterangan:
                 keterangan,
 
               foto_masuk_file_id:
-                absenHariIni
-                  .foto_masuk_file_id,
+                null,
 
               foto_pulang_file_id:
                 hasilFoto.file_id
