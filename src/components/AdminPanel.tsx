@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { User, AttendanceRecord } from '../types';
 import { MASTER_USERS } from '../constants';
 import {
@@ -12,7 +12,10 @@ import {
   Search,
   Trash2,
   UploadCloud,
-  X
+  X,
+  AlertTriangle,
+  CheckCircle2,
+  Info
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -23,6 +26,32 @@ interface AdminPanelProps {
   showLoader: (text: string) => void;
   hideLoader: () => void;
 }
+
+type AdminDialogVariant =
+  | 'success'
+  | 'error'
+  | 'warning'
+  | 'info';
+
+interface AdminDialogState {
+  open: boolean;
+  title: string;
+  message: string;
+  variant: AdminDialogVariant;
+  mode: 'message' | 'confirm';
+  confirmLabel: string;
+  cancelLabel: string;
+}
+
+const INITIAL_ADMIN_DIALOG: AdminDialogState = {
+  open: false,
+  title: '',
+  message: '',
+  variant: 'info',
+  mode: 'message',
+  confirmLabel: 'OK',
+  cancelLabel: 'Batal'
+};
 
 interface GuruGroup {
   id_user: string;
@@ -534,6 +563,13 @@ export default function AdminPanel({
   const [manualPhotoPulang, setManualPhotoPulang] = useState<File | null>(null);
   const [manualNote, setManualNote] = useState('');
   const [manualSaving, setManualSaving] = useState(false);
+  const [adminDialog, setAdminDialog] = useState<AdminDialogState>(
+    INITIAL_ADMIN_DIALOG
+  );
+
+  const dialogResolveRef = useRef<
+    ((value: boolean) => void) | null
+  >(null);
 
   const staffList = useMemo(
     () => MASTER_USERS.filter((u) => u.role !== 'admin'),
@@ -787,6 +823,60 @@ export default function AdminPanel({
   const EXPORT_REKAP_WORD_URL =
     'https://absensdk.vercel.app/api/export-rekap-word';
 
+  const closeAdminDialog = (result = false) => {
+    const resolver = dialogResolveRef.current;
+    dialogResolveRef.current = null;
+
+    setAdminDialog(INITIAL_ADMIN_DIALOG);
+
+    if (resolver) {
+      resolver(result);
+    }
+  };
+
+  const showAdminMessage = (
+    title: string,
+    message: string,
+    variant: AdminDialogVariant = 'info',
+    confirmLabel = 'OK'
+  ) => {
+    dialogResolveRef.current = null;
+
+    setAdminDialog({
+      open: true,
+      title,
+      message,
+      variant,
+      mode: 'message',
+      confirmLabel,
+      cancelLabel: 'Batal'
+    });
+  };
+
+  const askAdminConfirm = (
+    title: string,
+    message: string,
+    options?: {
+      variant?: AdminDialogVariant;
+      confirmLabel?: string;
+      cancelLabel?: string;
+    }
+  ) => {
+    return new Promise<boolean>((resolve) => {
+      dialogResolveRef.current = resolve;
+
+      setAdminDialog({
+        open: true,
+        title,
+        message,
+        variant: options?.variant || 'warning',
+        mode: 'confirm',
+        confirmLabel: options?.confirmLabel || 'Lanjutkan',
+        cancelLabel: options?.cancelLabel || 'Batal'
+      });
+    });
+  };
+
   const handleRefresh = async () => {
     showLoader('Memperbarui Data TiDB...');
     try {
@@ -855,17 +945,29 @@ export default function AdminPanel({
 
   const handleManualUpload = async () => {
     if (!manualGuru) {
-      alert('Pilih guru / pegawai terlebih dahulu.');
+      showAdminMessage(
+        'Guru Belum Dipilih',
+        'Pilih guru / pegawai terlebih dahulu.',
+        'warning'
+      );
       return;
     }
 
     if (!manualDate) {
-      alert('Pilih tanggal absensi.');
+      showAdminMessage(
+        'Tanggal Belum Dipilih',
+        'Pilih tanggal absensi terlebih dahulu.',
+        'warning'
+      );
       return;
     }
 
     if (!manualPhotoMasuk && !manualPhotoPulang) {
-      alert('Pilih minimal Foto Masuk atau Foto Pulang.');
+      showAdminMessage(
+        'Foto Belum Dipilih',
+        'Pilih minimal Foto Masuk atau Foto Pulang.',
+        'warning'
+      );
       return;
     }
 
@@ -883,9 +985,15 @@ export default function AdminPanel({
         replacingPulang ? 'Foto Pulang' : ''
       ].filter(Boolean);
 
-      const confirmed = window.confirm(
+      const confirmed = await askAdminConfirm(
+        'Ganti Foto Absensi?',
         `${parts.join(' dan ')} pada tanggal ini sudah ada.\n\n` +
-        'Foto yang dipilih akan menggantikan foto lama. Lanjutkan?'
+        'Foto yang dipilih akan menggantikan foto lama.',
+        {
+          variant: 'warning',
+          confirmLabel: 'Ya, Ganti Foto',
+          cancelLabel: 'Batalkan'
+        }
       );
 
       if (!confirmed) {
@@ -942,8 +1050,11 @@ export default function AdminPanel({
       setManualUploadOpen(false);
       resetManualUploadForm();
 
-      alert(
-        `Upload manual berhasil.\n\n${berhasil.join(' + ')} sudah disimpan.`
+      showAdminMessage(
+        'Upload Berhasil',
+        `${berhasil.join(' + ')} sudah disimpan.`,
+        'success',
+        'Selesai'
       );
 
     } catch (error) {
@@ -953,7 +1064,10 @@ export default function AdminPanel({
        */
       await onRefresh();
 
-      alert(
+      showAdminMessage(
+        berhasil.length > 0
+          ? 'Upload Sebagian Berhasil'
+          : 'Upload Gagal',
         `${
           berhasil.length > 0
             ? `${berhasil.join(' + ')} sudah berhasil disimpan.\n\n`
@@ -962,7 +1076,8 @@ export default function AdminPanel({
           error instanceof Error
             ? error.message
             : 'Upload manual gagal.'
-        }`
+        }`,
+        berhasil.length > 0 ? 'warning' : 'error'
       );
 
     } finally {
@@ -980,11 +1095,16 @@ export default function AdminPanel({
       return;
     }
 
-    const confirmed = window.confirm(
-      `Hapus data absensi?\n\n` +
+    const confirmed = await askAdminConfirm(
+      'Hapus Data Absensi?',
       `Nama: ${record.name}\n` +
       `Tanggal: ${formatDateIndonesia(record.date)}\n\n` +
-      `Data absensi akan dihapus dari TiDB dan foto Masuk/Pulang dipindahkan ke Sampah Google Drive.`
+      'Data absensi akan dihapus dari TiDB dan Foto Masuk/Pulang dipindahkan ke Sampah Google Drive.',
+      {
+        variant: 'error',
+        confirmLabel: 'Ya, Hapus',
+        cancelLabel: 'Batalkan'
+      }
     );
 
     if (!confirmed) {
@@ -1019,15 +1139,19 @@ export default function AdminPanel({
       await onRefresh();
 
       if (result.warning) {
-        alert(
-          `Data absensi berhasil dihapus.\n\nCatatan: ${result.warning}`
+        showAdminMessage(
+          'Data Berhasil Dihapus',
+          `Data absensi berhasil dihapus.\n\nCatatan: ${result.warning}`,
+          'warning'
         );
       }
     } catch (error) {
-      alert(
+      showAdminMessage(
+        'Gagal Menghapus Data',
         error instanceof Error
           ? error.message
-          : 'Data absensi gagal dihapus.'
+          : 'Data absensi gagal dihapus.',
+        'error'
       );
     } finally {
       setDeletingKey('');
@@ -1106,8 +1230,10 @@ export default function AdminPanel({
     );
 
     if (!printWindow) {
-      alert(
-        'Popup diblokir browser. Izinkan popup untuk mencetak rekap.'
+      showAdminMessage(
+        'Cetak Rekap Tidak Dapat Dibuka',
+        'Browser memblokir jendela cetak. Izinkan pembukaan jendela baru untuk fitur Cetak Rekap.',
+        'warning'
       );
       return;
     }
@@ -1476,6 +1602,74 @@ export default function AdminPanel({
       `}</style>
 
       <div className="mx-auto max-w-[1600px] space-y-5">
+        {adminDialog.open && (
+          <div className="screen-only fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+              <div className="p-6 sm:p-7">
+                <div className="flex items-start gap-4">
+                  <div
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${
+                      adminDialog.variant === 'success'
+                        ? 'bg-emerald-50 text-emerald-600'
+                        : adminDialog.variant === 'error'
+                          ? 'bg-red-50 text-red-600'
+                          : adminDialog.variant === 'warning'
+                            ? 'bg-amber-50 text-amber-600'
+                            : 'bg-blue-50 text-blue-600'
+                    }`}
+                  >
+                    {adminDialog.variant === 'success' ? (
+                      <CheckCircle2 className="h-6 w-6" />
+                    ) : adminDialog.variant === 'error' || adminDialog.variant === 'warning' ? (
+                      <AlertTriangle className="h-6 w-6" />
+                    ) : (
+                      <Info className="h-6 w-6" />
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-display text-lg font-black text-slate-900">
+                      {adminDialog.title}
+                    </h3>
+
+                    <p className="mt-2 whitespace-pre-line font-sans text-sm font-medium leading-6 text-slate-500">
+                      {adminDialog.message}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:flex-row sm:justify-end">
+                {adminDialog.mode === 'confirm' && (
+                  <button
+                    type="button"
+                    onClick={() => closeAdminDialog(false)}
+                    className="cursor-pointer rounded-xl bg-white px-5 py-3 text-xs font-bold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-slate-100"
+                  >
+                    {adminDialog.cancelLabel}
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => closeAdminDialog(true)}
+                  className={`cursor-pointer rounded-xl px-5 py-3 text-xs font-black text-white transition-colors ${
+                    adminDialog.variant === 'error'
+                      ? 'bg-red-600 hover:bg-red-700'
+                      : adminDialog.variant === 'warning'
+                        ? 'bg-amber-500 hover:bg-amber-600'
+                        : adminDialog.variant === 'success'
+                          ? 'bg-emerald-600 hover:bg-emerald-700'
+                          : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                >
+                  {adminDialog.confirmLabel}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {manualUploadOpen && (
           <div className="screen-only fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-6">
             <div className="max-h-[94vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl">
