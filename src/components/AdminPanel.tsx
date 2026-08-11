@@ -784,6 +784,9 @@ export default function AdminPanel({
   const EXPORT_WORD_URL =
     'https://absensdk.vercel.app/api/export-word';
 
+  const EXPORT_REKAP_WORD_URL =
+    'https://absensdk.vercel.app/api/export-rekap-word';
+
   const handleRefresh = async () => {
     showLoader('Memperbarui Data TiDB...');
     try {
@@ -1067,6 +1070,30 @@ export default function AdminPanel({
     }
 
     const url = `${EXPORT_WORD_URL}?${params.toString()}`;
+
+    window.open(url, '_blank');
+  };
+
+  const handleDownloadMonthlyRecapWord = () => {
+    if (monthlyRecap.length === 0) {
+      return;
+    }
+
+    const params = new URLSearchParams({
+      bulan: selectedMonth,
+      tahun: selectedYear
+    });
+
+    if (selectedGuru) {
+      params.set('id_user', selectedGuru);
+    }
+
+    if (searchQuery.trim()) {
+      params.set('q', searchQuery.trim());
+    }
+
+    const url =
+      `${EXPORT_REKAP_WORD_URL}?${params.toString()}`;
 
     window.open(url, '_blank');
   };
@@ -1843,14 +1870,25 @@ export default function AdminPanel({
               </p>
             </div>
 
-            <button
-              onClick={handlePrintMonthlyRecap}
-              disabled={monthlyRecap.length === 0}
-              className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-sans text-xs font-bold text-white transition-all hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Printer className="h-4 w-4" />
-              Cetak Rekap
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                onClick={handleDownloadMonthlyRecapWord}
+                disabled={monthlyRecap.length === 0}
+                className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 font-sans text-xs font-bold text-white transition-all hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <FileText className="h-4 w-4" />
+                Download Word Rekap
+              </button>
+
+              <button
+                onClick={handlePrintMonthlyRecap}
+                disabled={monthlyRecap.length === 0}
+                className="flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-sans text-xs font-bold text-white transition-all hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Printer className="h-4 w-4" />
+                Cetak Rekap
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
