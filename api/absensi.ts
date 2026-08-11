@@ -576,6 +576,21 @@ export default {
           ).trim() || '-';
 
 
+        const adminManual =
+          body.admin_manual === true ||
+          String(body.action || '')
+            .trim()
+            .toLowerCase() === 'admin_manual_upload';
+
+
+        const manualNote =
+          String(
+            body.note ||
+            body.keterangan ||
+            ''
+          ).trim();
+
+
 
         // ==================================================
         // NORMALISASI JAM
@@ -596,16 +611,18 @@ export default {
         if (
           !idUser ||
           !tanggal ||
-          !jam ||
           !status ||
-          !photo
+          !photo ||
+          (!adminManual && !jam)
         ) {
 
           return json(request, 
             {
               status: 'error',
               message:
-                'Data absensi belum lengkap.',
+                adminManual
+                  ? 'Guru, tanggal, status, dan foto wajib diisi.'
+                  : 'Data absensi belum lengkap.',
             },
             400
           );
@@ -661,6 +678,7 @@ export default {
         // ==================================================
 
         if (
+          jam &&
           !/^([01]\d|2[0-3]):[0-5]\d$/.test(
             jam
           )
@@ -770,6 +788,8 @@ export default {
 
                 status,
 
+                keterangan,
+
                 foto_masuk_file_id,
 
                 foto_pulang_file_id
@@ -800,6 +820,240 @@ export default {
 
             : null;
 
+
+
+        // ==================================================
+        // UPLOAD MANUAL OLEH ADMIN
+        // - Boleh memilih tanggal lama
+        // - Jam boleh kosong
+        // - Bisa mengisi Foto Masuk saja / Foto Pulang saja
+        // - Jika data sudah ada, bagian yang dipilih akan diperbarui
+        // ==================================================
+
+        if (adminManual) {
+
+          const hasilFoto =
+            await uploadFoto(
+              appsScriptUrl,
+              {
+                id_user:
+                  idUser,
+
+                name:
+                  namaGuru,
+
+                date:
+                  tanggal,
+
+                status:
+                  status,
+
+                photo:
+                  photo,
+              }
+            );
+
+
+          if (
+            hasilFoto.status !== 'success' ||
+            !hasilFoto.file_id
+          ) {
+
+            return json(request, 
+              {
+                status: 'error',
+                message:
+                  hasilFoto.message ||
+                  'Foto manual gagal disimpan ke Google Drive.',
+              },
+              500
+            );
+          }
+
+
+          // ----------------------------------------------
+          // FOTO MASUK MANUAL
+          // ----------------------------------------------
+
+          if (status === 'MASUK') {
+
+            if (absenHariIni) {
+
+              const statusBaru =
+                absenHariIni.jam_pulang ||
+                absenHariIni.foto_pulang_file_id
+
+                  ? 'MASUK & PULANG'
+                  : 'MASUK';
+
+
+              await conn.execute(
+                `
+                  UPDATE absensi
+
+                  SET
+                    jam_masuk = ?,
+                    foto_masuk_file_id = ?,
+                    status = ?,
+                    keterangan = ?,
+                    updated_at = CURRENT_TIMESTAMP
+
+                  WHERE
+                    id_user = ?
+                    AND tanggal = ?
+                `,
+                [
+                  jam || absenHariIni.jam_masuk || null,
+                  hasilFoto.file_id,
+                  statusBaru,
+                  manualNote || absenHariIni.keterangan || '-',
+                  idUser,
+                  tanggal
+                ]
+              );
+
+            } else {
+
+              await conn.execute(
+                `
+                  INSERT INTO absensi
+                  (
+                    id_user,
+                    tanggal,
+                    jam_masuk,
+                    status,
+                    keterangan,
+                    foto_masuk_file_id
+                  )
+
+                  VALUES
+                  (
+                    ?,
+                    ?,
+                    ?,
+                    'MASUK',
+                    ?,
+                    ?
+                  )
+                `,
+                [
+                  idUser,
+                  tanggal,
+                  jam || null,
+                  manualNote || '-',
+                  hasilFoto.file_id
+                ]
+              );
+            }
+
+
+            return json(request, {
+              status: 'success',
+              message:
+                'Foto MASUK manual berhasil disimpan.',
+              data: {
+                id_user: idUser,
+                name: namaGuru,
+                date: tanggal,
+                status: 'MASUK',
+                foto_masuk_file_id:
+                  hasilFoto.file_id
+              }
+            });
+          }
+
+
+          // ----------------------------------------------
+          // FOTO PULANG MANUAL
+          // ----------------------------------------------
+
+          if (status === 'PULANG') {
+
+            if (absenHariIni) {
+
+              const statusBaru =
+                absenHariIni.jam_masuk ||
+                absenHariIni.foto_masuk_file_id
+
+                  ? 'MASUK & PULANG'
+                  : 'PULANG';
+
+
+              await conn.execute(
+                `
+                  UPDATE absensi
+
+                  SET
+                    jam_pulang = ?,
+                    foto_pulang_file_id = ?,
+                    status = ?,
+                    keterangan = ?,
+                    updated_at = CURRENT_TIMESTAMP
+
+                  WHERE
+                    id_user = ?
+                    AND tanggal = ?
+                `,
+                [
+                  jam || absenHariIni.jam_pulang || null,
+                  hasilFoto.file_id,
+                  statusBaru,
+                  manualNote || absenHariIni.keterangan || '-',
+                  idUser,
+                  tanggal
+                ]
+              );
+
+            } else {
+
+              await conn.execute(
+                `
+                  INSERT INTO absensi
+                  (
+                    id_user,
+                    tanggal,
+                    jam_pulang,
+                    status,
+                    keterangan,
+                    foto_pulang_file_id
+                  )
+
+                  VALUES
+                  (
+                    ?,
+                    ?,
+                    ?,
+                    'PULANG',
+                    ?,
+                    ?
+                  )
+                `,
+                [
+                  idUser,
+                  tanggal,
+                  jam || null,
+                  manualNote || '-',
+                  hasilFoto.file_id
+                ]
+              );
+            }
+
+
+            return json(request, {
+              status: 'success',
+              message:
+                'Foto PULANG manual berhasil disimpan.',
+              data: {
+                id_user: idUser,
+                name: namaGuru,
+                date: tanggal,
+                status: 'PULANG',
+                foto_pulang_file_id:
+                  hasilFoto.file_id
+              }
+            });
+          }
+        }
 
 
         // ==================================================
