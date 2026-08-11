@@ -248,6 +248,13 @@ const KOP_LOGO_KABUPATEN =
 const KOP_LOGO_TUT_WURI =
   `${import.meta.env.BASE_URL}logo-tut-wuri.png`;
 
+
+const KEPALA_SEKOLAH_NAMA =
+  'Wilhelmina Kasih, S.Ag., S.Pd., Gr';
+
+const KEPALA_SEKOLAH_IDENTITAS =
+  'NIK. 111321452';
+
 function AttendancePhoto({
   fileId,
   alt
@@ -1410,6 +1417,31 @@ export default function AdminPanel({
               margin-top: 3mm;
               font-size: 7pt;
             }
+
+            .signature-wrap {
+              display: flex;
+              justify-content: flex-end;
+              margin-top: 6mm;
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+
+            .signature-box {
+              width: 62mm;
+              text-align: center;
+              font-size: 9pt;
+              line-height: 1.25;
+            }
+
+            .signature-space {
+              height: 19mm;
+            }
+
+            .signature-name {
+              font-weight: 700;
+              text-decoration: underline;
+              text-underline-offset: 2px;
+            }
           </style>
         </head>
 
@@ -1485,6 +1517,21 @@ export default function AdminPanel({
             Hari kerja dihitung Senin s.d. Sabtu.
             Untuk bulan berjalan hanya dihitung sampai tanggal hari ini.
             Batas terlambat: ${escapeHtml(BATAS_TERLAMBAT)}.
+          </div>
+
+
+          <div class="signature-wrap">
+            <div class="signature-box">
+              <div>Mengetahui,</div>
+              <div>Kepala Sekolah</div>
+              <div class="signature-space"></div>
+              <div class="signature-name">
+                ${escapeHtml(KEPALA_SEKOLAH_NAMA)}
+              </div>
+              <div>
+                ${escapeHtml(KEPALA_SEKOLAH_IDENTITAS)}
+              </div>
+            </div>
           </div>
 
           <script>
@@ -2270,6 +2317,20 @@ export default function AdminPanel({
                 ))}
               </tbody>
             </table>
+          </div>
+
+          <div className="flex justify-end border-t border-slate-200 px-6 py-6 sm:px-10">
+            <div className="w-full max-w-[310px] text-center font-serif text-sm text-slate-900">
+              <div>Mengetahui,</div>
+              <div className="font-semibold">Kepala Sekolah</div>
+              <div className="h-20 sm:h-24" />
+              <div className="font-bold underline underline-offset-4">
+                {KEPALA_SEKOLAH_NAMA}
+              </div>
+              <div className="mt-1 text-xs font-semibold">
+                {KEPALA_SEKOLAH_IDENTITAS}
+              </div>
+            </div>
           </div>
         </section>
 
