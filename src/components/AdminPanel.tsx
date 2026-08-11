@@ -1583,7 +1583,7 @@ export default function AdminPanel({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-3 py-6 sm:px-6 admin-report-page">
+    <div className="min-h-screen bg-slate-50 admin-report-page">
       <style>{`
         .attendance-photo {
           width: 132px;
@@ -1597,7 +1597,11 @@ export default function AdminPanel({
 
         @media (max-width: 1023px) {
           .admin-report-page {
-            padding-top: 12px;
+            padding: 12px;
+          }
+
+          .admin-report-page aside {
+            border-radius: 24px;
           }
         }
 
@@ -1748,7 +1752,7 @@ export default function AdminPanel({
         }
       `}</style>
 
-      <div className="mx-auto max-w-[1600px] space-y-5">
+      <div className="min-h-screen">
         {adminDialog.open && (
           <div className="screen-only fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
@@ -2029,9 +2033,9 @@ export default function AdminPanel({
             </div>
           </div>
         )}
-        <div className="grid items-start gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <div className="min-h-screen">
           {/* SIDEBAR ADMIN */}
-          <aside className="no-print screen-only overflow-hidden rounded-3xl bg-slate-950 text-white shadow-xl shadow-slate-900/10 lg:sticky lg:top-5">
+          <aside className="no-print screen-only overflow-hidden bg-slate-950 text-white shadow-xl shadow-slate-900/10 lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:h-screen lg:w-[280px] lg:flex-col lg:overflow-y-auto lg:border-r lg:border-white/10">
             <div className="border-b border-white/10 p-5">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/10">
@@ -2058,7 +2062,7 @@ export default function AdminPanel({
               </div>
             </div>
 
-            <div className="p-3">
+            <div className="p-3 lg:flex-1">
               <div className="px-3 pb-2 pt-1 text-[9px] font-black uppercase tracking-[0.22em] text-slate-500">
                 Menu Utama
               </div>
@@ -2175,7 +2179,7 @@ export default function AdminPanel({
           </aside>
 
           {/* KONTEN UTAMA */}
-          <main className="min-w-0 space-y-5">
+          <main className="admin-main min-w-0 space-y-5 p-3 pt-5 sm:p-5 lg:ml-[280px] lg:p-7">
             <header className="no-print screen-only flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
