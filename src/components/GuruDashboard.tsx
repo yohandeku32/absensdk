@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LogOut,
-  User as UserIcon,
   Clock,
   CheckCircle2,
   FileText,
