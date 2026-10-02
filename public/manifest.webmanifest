@@ -1,0 +1,28 @@
+{
+  "name": "E-Absensi SDK St. Yoseph Kuaputu",
+  "short_name": "E-Absensi SDK",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "lang": "id-ID",
+  "description": "Sistem absensi digital SDK St. Yoseph Kuaputu.",
+  "categories": ["education", "productivity"],
+  "theme_color": "#1d4ed8",
+  "background_color": "#f8fafc",
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa-icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}
